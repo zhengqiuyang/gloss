@@ -10,13 +10,19 @@
 ## L3 · 菜单栏应用（体验天花板，推荐）
 
 ```bash
+# macOS：装 pyobjc
 uv pip install 'gloss-cli[app]'   # 一次性安装 pyobjc（几 MB）
 gloss app                         # 菜单栏出现 📖，弹窗自动打开
+
+# Windows：装 WebView2 弹窗 + 托盘（pywebview/pystray），配合 gloss hotkey
+uv tool install "gloss-cli[app] @ git+https://github.com/zhengqiuyang/gloss"
+gloss hotkey --startup
 ```
 
-之后任何时候：⌥⌘G → 卡片浮在鼠标附近（自动预填剪贴板，可编辑）→ 回车查询 →
+之后任何时候（macOS）：⌥⌘G → 卡片浮在鼠标附近（自动预填剪贴板，可编辑）→ 回车查询 →
 Esc 关窗回到阅读。应用自带常驻服务，不需要再跑 `gloss serve`。
 `gloss app --hidden` 启动时不弹窗；`--no-hotkey` 关闭全局热键。
+Windows 上对应的是 `gloss hotkey`（Ctrl+G 呼出无边框卡片 + 托盘常驻）。
 
 ## L0 · 命令打到最短（必做，1 分钟）
 
