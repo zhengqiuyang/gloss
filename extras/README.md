@@ -79,7 +79,15 @@ system-wide hotkey"。设一个热键（如 ⌥Space）呼出一个悬浮半透�
 剪贴板捕获在 Windows 上开箱即用（Win32 剪贴板读文字，截图走 PowerShell）：
 
 1. `Win+Shift+S` 截图（进剪贴板）或照常 `Ctrl+C` 复制文字；
-2. 终端里 `gloss paste`（建议在 PowerShell profile 里加 `Set-Alias gp gloss paste`）。
+2. 终端里敲 `gloss paste`。建议在 PowerShell `$PROFILE` 里加（**`gp` 在 PowerShell 里用不了**——它是内置 AllScope 别名，任何方式都覆盖不掉；Git Bash 无此限制）：
+
+   ```powershell
+   Set-Alias g gloss
+   function gpp { gloss paste @args }
+   function gn { gloss paste --notify @args }
+   ```
+
+   Git Bash 用户照旧：`alias g='gloss'`、`alias gp='gloss paste'`。
 
 ### AutoHotkey 全局热键（推荐）
 
