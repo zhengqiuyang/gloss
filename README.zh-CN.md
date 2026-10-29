@@ -52,7 +52,7 @@ gloss 做的是同一件事，而且刻意保留了页边注的三个好品质�
    将来 gloss 它时自动回填成双向链接。
 
 <p align="center">
-  <img src="docs/img/gloss-card.svg" alt="gloss 队头阻塞卡片：缓存命中 0 token，QUIC 与 TLS 已自动关联，TCP/HTTP/2 等待收录" width="720">
+  <img src="docs/img/gloss-card.png" alt="gloss 网页卡片：KV Cache 已收录，预训练/后训练/降维/池化 自动关联" width="720">
 </p>
 
 每次查询都会告诉你是 `⚡ 0 tokens` 的缓存命中，还是 `✨ 已收录` 的新卡——

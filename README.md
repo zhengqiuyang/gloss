@@ -63,7 +63,7 @@ It writes the margin notes for you, and keeps every one of them.
    into a two-way link when you gloss them later.
 
 <p align="center">
-  <img src="docs/img/gloss-card.svg" alt="gloss HOL-blocking card: cache hit, 0 tokens; QUIC and TLS auto-linked; TCP/HTTP/2 waiting to be glossed" width="720">
+  <img src="docs/img/gloss-card.png" alt="gloss web card: KV Cache ingested, auto-linked to Pre-training / Post-training / Pooling / Dimensionality reduction" width="720">
 </p>
 
 Every lookup tells you whether it was a `⚡ 0 tokens` cache hit or a fresh
