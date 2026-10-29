@@ -16,7 +16,19 @@ import signal
 import threading
 from typing import Callable, Optional
 
+from .config import gloss_home
 from .models import GlossError
+
+
+def _log(message: str) -> None:
+    """Append to GLOSS_HOME/app.log — the app's black-box flight recorder."""
+    try:
+        from .models import now_iso
+
+        with open(gloss_home() / "app.log", "a", encoding="utf-8") as f:
+            f.write(f"{now_iso()} {message}\n")
+    except Exception:
+        pass
 
 # Carbon modifiers
 _MOD_MAP = {
@@ -38,8 +50,8 @@ _VK_MAP = {
     "j": 0x26, "'": 0x27, "k": 0x28, ";": 0x29, "\\": 0x2A, ",": 0x2B,
     "/": 0x2C, "n": 0x2D, "m": 0x2E,
 }
-_EVENT_CLASS_KEYBOARD = 0x6B657962  # 'keyb'
-_EVENT_HOT_KEY_PRESSED = 10
+_EVENT_CLASS_KEYBOARD = 0x6B657962  # kEventClassKeyboard = 'keyb'
+_EVENT_HOT_KEY_PRESSED = 5          # Carbon Events.h: kEventHotKeyPressed = 5
 
 
 def parse_hotkey(spec: str) -> Optional[tuple]:
@@ -122,22 +134,30 @@ def _run_gui(port: int, no_hotkey: bool, show_on_start: bool) -> None:
 
     from .ui import console
 
+    _log(f"app start: port={port} spec={spec!r} parsed={parsed}")
     if not no_hotkey:
         if parsed is None:
+            _log(f"hotkey INVALID: {spec!r}")
             console.print(
                 f"[yellow]热键配置 {spec!r} 无法识别（示例: cmd+g / cmd+alt+g / ctrl+1），"
                 "先用菜单栏图标呼出。可用 gloss config set app.hotkey 修改。[/yellow]"
             )
         elif not register_hotkey(delegate.togglePanel, spec):
+            _log(f"hotkey REGISTER FAILED: {spec!r} (可能被其他应用占用)")
+            from .notify import send
+
+            send("gloss · 热键注册失败", f"{parsed[2]} 可能被其他应用占用，请看终端提示")
             console.print(
                 f"[yellow]全局热键 {parsed[2]} 注册失败（可能被其他应用占用），"
                 "仍可用菜单栏图标呼出[/yellow]"
             )
-        elif parsed[1] == _MOD_MAP["cmd"] and len(spec.split("+")) == 2:
-            console.print(
-                "[yellow]提示: ⌘+单键 是全局热键，gloss 运行期间会接管其他应用里的同款快捷键"
-                "（如 ⌘G 的“查找下一个”）。想换回来: gloss config set app.hotkey cmd+alt+g[/yellow]"
-            )
+        else:
+            _log(f"hotkey registered: {spec!r} -> {parsed[2]}")
+            if parsed[1] == _MOD_MAP["cmd"] and len(spec.split("+")) == 2:
+                console.print(
+                    "[yellow]提示: ⌘+单键 是全局热键，gloss 运行期间会接管其他应用里的同款快捷键"
+                    "（如 ⌘G 的“查找下一个”）。想换回来: gloss config set app.hotkey cmd+alt+g[/yellow]"
+                )
 
     if show_on_start:
         delegate.showPanel()
@@ -198,14 +218,14 @@ def _build_delegate_class():
             item.setMenu_(menu)
             self.status_item = item
 
-            # floating panel (spotlight-like: no visible titlebar, rounded, shadowed)
+            # floating panel (spotlight-like: no visible titlebar, rounded, frosted)
             mask = (
                 A.NSWindowStyleMaskNonactivatingPanel
                 | A.NSWindowStyleMaskTitled
                 | A.NSWindowStyleMaskFullSizeContentView
             )
             panel = Panel.alloc().initWithContentRect_styleMask_backing_defer_(
-                F.NSMakeRect(0, 0, 660, 580), mask, A.NSBackingStoreBuffered, False
+                F.NSMakeRect(0, 0, 580, 450), mask, A.NSBackingStoreBuffered, False
             )
             panel.setTitlebarAppearsTransparent_(True)
             panel.setTitleVisibility_(A.NSWindowTitleHidden)
@@ -222,11 +242,22 @@ def _build_delegate_class():
                 if btn:
                     btn.setHidden_(True)
 
+            # frosted-glass backdrop under a transparent webview
+            effect = A.NSVisualEffectView.alloc().initWithFrame_(
+                F.NSMakeRect(0, 0, 580, 450)
+            )
+            effect.setMaterial_(A.NSVisualEffectMaterialPopover)
+            effect.setBlendingMode_(A.NSVisualEffectBlendingModeBehindWindow)
+            effect.setState_(A.NSVisualEffectStateActive)
+            effect.setAutoresizingMask_(2 | 16)
+            panel.contentView().addSubview_(effect)
+
             conf = WebKit.WKWebViewConfiguration.alloc().init()
             webview = WebKit.WKWebView.alloc().initWithFrame_configuration_(
-                F.NSMakeRect(0, 0, 660, 580), conf
+                F.NSMakeRect(0, 0, 580, 450), conf
             )
             webview.setUIDelegate_(self)
+            webview.setValue_forKey_(False, "drawsBackground")  # let the blur show
             webview.setAutoresizingMask_(2 | 16)  # grow with parent
             panel.contentView().addSubview_(webview)
 
@@ -240,14 +271,17 @@ def _build_delegate_class():
         # -- panel control ---------------------------------------------
 
         def showPanel(self) -> None:
-            url = F.NSURL.URLWithString_(f"http://127.0.0.1:{self.port}/")
+            _log("panel show")
+            url = F.NSURL.URLWithString_(f"http://127.0.0.1:{self.port}/?glass=1")
             self.webview.loadRequest_(F.NSURLRequest.requestWithURL_(url))
             self._position_near_mouse()
             self.panel.makeKeyAndOrderFront_(None)
 
         def togglePanel(self) -> None:
+            _log("hotkey triggered -> toggle")
             if self.panel is not None and self.panel.isVisible():
                 self.panel.orderOut_(None)
+                _log("panel hide")
             else:
                 self.showPanel()
 
@@ -289,13 +323,17 @@ def _build_delegate_class():
     return Delegate
 
 
+# Module-level: the CFUNCTYPE object MUST outlive register_hotkey(), otherwise
+# ctypes garbage-collects the trampoline and Carbon calls a dangling pointer.
+_HOTKEY_REFS: list = []
+
+
 def register_hotkey(callback: Callable[[], None], spec: str = "cmd+g") -> bool:
     """Register a system-wide hotkey via Carbon. No accessibility permission needed."""
     parsed = parse_hotkey(spec)
     if parsed is None:
         return False
     key_code, modifiers, _display = parsed
-    holder: dict = {"cb": None}
 
     try:
         carbon = ctypes.CDLL(
@@ -317,11 +355,12 @@ def register_hotkey(callback: Callable[[], None], spec: str = "cmd+g") -> bool:
     def _cb(_call_ref, _event, _user_data) -> int:
         try:
             callback()
-        except Exception:
-            pass
+        except Exception as exc:
+            _log(f"hotkey callback ERROR: {exc!r}")
         return 0
 
-    holder["cb"] = CALLBACK(_cb)  # keep alive for the C side
+    _HOTKEY_REFS.clear()
+    _HOTKEY_REFS.append(CALLBACK(_cb))  # keep alive for as long as C uses it
 
     carbon.GetApplicationEventTarget.restype = ctypes.c_void_p
     carbon.InstallEventHandler.argtypes = [
@@ -351,7 +390,7 @@ def register_hotkey(callback: Callable[[], None], spec: str = "cmd+g") -> bool:
     handler = ctypes.c_void_p()
     if (
         carbon.InstallEventHandler(
-            target, holder["cb"], 1, ctypes.byref(spec), None, ctypes.byref(handler)
+            target, _HOTKEY_REFS[0], 1, ctypes.byref(spec), None, ctypes.byref(handler)
         )
         != 0
     ):

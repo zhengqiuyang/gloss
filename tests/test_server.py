@@ -49,6 +49,19 @@ def test_get_page_contains_input_and_prefill(server_url, monkeypatch):
     assert "QUIC" in html  # clipboard pre-filled
 
 
+def test_glass_param_toggles_body_class(server_url):
+    _, _, plain = _request(server_url)
+    assert "<body>" in plain.decode("utf-8")
+
+    conn = http.client.HTTPConnection(server_url, timeout=30)
+    conn.request("GET", "/?glass=1")
+    resp = conn.getresponse()
+    glass_html = resp.read().decode("utf-8")
+    conn.close()
+    assert resp.status == 200  # 带查询参数也必须路由到页面
+    assert '<body class="glass">' in glass_html
+
+
 def test_get_page_with_image_clipboard_shows_hint(server_url, monkeypatch):
     from gloss import clipboard
 

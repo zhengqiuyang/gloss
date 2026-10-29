@@ -67,8 +67,12 @@ def make_handler():
             self.wfile.write(body)
 
         def do_GET(self) -> None:
-            if self.path != "/":
+            from urllib.parse import parse_qs, urlparse
+
+            route = urlparse(self.path)
+            if route.path != "/":
                 return self._json(404, {"error": "not found"})
+            glass = "1" in parse_qs(route.query).get("glass", [])
             prefill, hint, clip_kind = "", "", "none"
             try:
                 kind, data = clipboard.read_clipboard()
@@ -82,6 +86,7 @@ def make_handler():
                 .replace("__PREFILL__", json.dumps(prefill, ensure_ascii=False).replace("</", "<\\/"))
                 .replace("__HINT__", json.dumps(hint, ensure_ascii=False).replace("</", "<\\/"))
                 .replace("__CLIP_KIND__", json.dumps(clip_kind))
+                .replace("<body>", '<body class="glass">' if glass else "<body>")
             )
             body = html.encode("utf-8")
             self.send_response(200)
@@ -177,15 +182,24 @@ _PAGE = """<!doctype html>
     background: var(--bg); color: var(--text);
     -webkit-font-smoothing: antialiased;
   }
-  .app { max-width: 720px; margin: 0 auto; padding: 16px 16px 20px; }
+  /* app 弹窗模式：衬在原生毛玻璃材质上，整体半透明、无投影 */
+  body.glass { background: transparent; }
+  body.glass {
+    --bg: transparent;
+    --surface: light-dark(rgba(255,255,255,.66), rgba(36,36,41,.55));
+    --border: light-dark(rgba(0,0,0,.09), rgba(255,255,255,.10));
+  }
+  body.glass .card { box-shadow: none; }
+  body.glass .searchbar { box-shadow: none; }
+  .app { max-width: 720px; margin: 0 auto; padding: 14px 14px 18px; }
 
   .searchbar {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; gap: 9px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 14px; padding: 12px 16px;
+    border-radius: 13px; padding: 10px 14px;
     box-shadow: 0 1px 3px rgba(0,0,0,.05);
-    position: sticky; top: 12px; z-index: 10;
+    position: sticky; top: 10px; z-index: 10;
     transition: border-color .16s, box-shadow .16s;
   }
   .searchbar:focus-within {
@@ -195,7 +209,7 @@ _PAGE = """<!doctype html>
   .searchbar .icon { font-size: 17px; user-select: none; }
   #q {
     flex: 1; border: 0; outline: 0; background: transparent; color: inherit;
-    font-size: 16px; font-family: inherit;
+    font-size: 15.5px; font-family: inherit;
   }
   #q::placeholder { color: var(--text2); }
   kbd {
@@ -206,7 +220,7 @@ _PAGE = """<!doctype html>
   }
   .hint { color: var(--amber); font-size: 12.5px; margin: 8px 4px 0; min-height: 1.2em; }
 
-  #out { margin-top: 14px; max-height: calc(100vh - 148px); overflow-y: auto;
+  #out { margin-top: 12px; max-height: calc(100vh - 128px); overflow-y: auto;
          scrollbar-width: thin; }
   #out::-webkit-scrollbar { width: 8px; }
   #out::-webkit-scrollbar-thumb { background: rgba(128,128,128,.35); border-radius: 4px; }
@@ -214,39 +228,39 @@ _PAGE = """<!doctype html>
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 16px; padding: 20px 22px 18px; margin-bottom: 12px;
-    box-shadow: 0 10px 28px rgba(0,0,0,.08);
+    border-radius: 14px; padding: 16px 18px 14px; margin-bottom: 10px;
+    box-shadow: 0 8px 22px rgba(0,0,0,.07);
     animation: pop .24s cubic-bezier(.2, .9, .3, 1.15);
   }
   @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.985); } }
 
-  .topline { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .topline { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .badge {
-    font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
-    padding: 3px 11px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; letter-spacing: .02em;
+    padding: 2px 10px; border-radius: 999px;
   }
   .badge.new { color: var(--accent); background: rgba(10,132,255,.13); }
   .badge.hit { color: var(--green); background: rgba(48,209,88,.14); }
   .hits { font-size: 11.5px; color: var(--text2); }
 
-  h1 { font-size: 23px; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; }
-  .aka { color: var(--text2); font-size: 13px; margin-top: 4px; }
+  h1 { font-size: 21px; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; }
+  .aka { color: var(--text2); font-size: 12.5px; margin-top: 3px; }
 
   .oneliner {
-    margin: 14px 0 10px; padding: 10px 14px;
-    font-weight: 600; font-size: 15px; line-height: 1.6;
+    margin: 12px 0 9px; padding: 8px 12px;
+    font-weight: 600; font-size: 14.5px; line-height: 1.6;
     border-left: 3px solid var(--accent); border-radius: 8px;
     background: rgba(10,132,255,.07);
   }
-  .detail { font-size: 14px; color: var(--text3); white-space: pre-wrap; }
+  .detail { font-size: 13.5px; color: var(--text3); white-space: pre-wrap; }
 
-  .tags { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tags { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
   .tag {
-    font-size: 12px; font-weight: 500; color: var(--purple);
-    background: rgba(191,90,242,.1); padding: 3px 10px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 500; color: var(--purple);
+    background: rgba(191,90,242,.1); padding: 2px 9px; border-radius: 999px;
   }
 
-  .section { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .section { margin-top: 13px; border-top: 1px solid var(--border); padding-top: 10px; }
   .label {
     font-size: 11px; font-weight: 700; color: var(--text2);
     text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px;
