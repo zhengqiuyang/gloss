@@ -177,6 +177,52 @@ def _build_delegate_class():
         def canBecomeKey(self):
             return True  # floating panels need this for webview text input
 
+    class DragStrip(A.NSView):
+        """Slim native strip along the top edge: drag it to move the window."""
+
+        def isFlipped(self):
+            return False
+
+        def mouseDownCanMoveWindow(self):
+            return True
+
+        def mouseDown_(self, event):
+            self.window().performDrag_(event)
+
+    class ResizeGrip(A.NSView):
+        """Bottom-right grip: drag to resize the panel."""
+
+        def mouseDown_(self, event):
+            w = self.window()
+            start_frame = w.frame()
+            start_mouse = A.NSEvent.mouseLocation()
+            mask = A.NSEventMaskLeftMouseDragged | A.NSEventMaskLeftMouseUp
+            while True:
+                ev = w.nextEventMatchingMask_untilDate_inMode_dequeue_(
+                    mask, F.NSDate.distantFuture(), A.NSEventTrackingRunLoopMode, True
+                )
+                if ev is None or ev.type() == A.NSEventTypeLeftMouseUp:
+                    break
+                m = A.NSEvent.mouseLocation()
+                new_w = max(380, start_frame.size.width + (m.x - start_mouse.x))
+                new_h = max(300, start_frame.size.height - (m.y - start_mouse.y))
+                new_y = start_frame.origin.y - (new_h - start_frame.size.height)
+                w.setFrame_(
+                    F.NSMakeRect(start_frame.origin.x, new_y, new_w, new_h)
+                )
+
+        def drawRect_(self, rect):
+            color = A.NSColor.systemGrayColor().colorWithAlphaComponent_(0.55)
+            color.setStroke()
+            path = A.NSBezierPath.bezierPath()
+            path.setLineWidth_(1.5)
+            w, h = self.bounds().size.width, self.bounds().size.height
+            for i in range(3):
+                o = 4 + i * 5
+                path.moveToPoint_((w - o, 2.5))
+                path.lineToPoint_((w - 2.5, o))
+            path.stroke()
+
     class Delegate(F.NSObject):
         port = 0
         hotkey = None  # (keycode, carbon_mods, display) set by _run_gui
@@ -223,6 +269,7 @@ def _build_delegate_class():
                 A.NSWindowStyleMaskNonactivatingPanel
                 | A.NSWindowStyleMaskTitled
                 | A.NSWindowStyleMaskFullSizeContentView
+                | A.NSWindowStyleMaskResizable
             )
             panel = Panel.alloc().initWithContentRect_styleMask_backing_defer_(
                 F.NSMakeRect(0, 0, 500, 380), mask, A.NSBackingStoreBuffered, False
@@ -265,6 +312,19 @@ def _build_delegate_class():
             webview.setValue_forKey_(False, "drawsBackground")  # let the blur show
             webview.setAutoresizingMask_(2 | 16)  # grow with parent
             panel.contentView().addSubview_(webview)
+
+            # native move/resize affordances on top of the webview
+            panel.setMinSize_(F.NSSize(380, 300))
+            strip = DragStrip.alloc().initWithFrame_(
+                F.NSMakeRect(0, 380 - 16, 500, 16)
+            )
+            strip.setAutoresizingMask_(2 | 16)  # flexible width, pinned to top
+            panel.contentView().addSubview_(strip)
+            grip = ResizeGrip.alloc().initWithFrame_(
+                F.NSMakeRect(500 - 18, 0, 18, 18)
+            )
+            grip.setAutoresizingMask_(4 | 16)  # pinned to bottom-right
+            panel.contentView().addSubview_(grip)
 
             self.panel = panel
             self.webview = webview
