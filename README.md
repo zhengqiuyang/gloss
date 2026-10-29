@@ -53,6 +53,8 @@ So gloss inverts the workflow:
 - 🔗 **Auto-linking** between related concepts, with pending-name backfill
 - 📝 **Pipe anything in**: `pbpaste | gloss` digests a paragraph into a snippet
   card and suggests key terms worth glossing next
+- 📋 **`gloss paste`** — zero typing: gloss straight from the clipboard; pair it
+  with `alias gp='gloss paste'` and a [global hotkey recipe](extras/README.md)
 - 🖼 **`gloss img screenshot.png`** — parse an image (screenshot, diagram) via a
   vision model
 - 🔍 **Full-text search** (SQLite FTS5) across terms, details and tags
@@ -96,6 +98,7 @@ database is `~/.gloss/gloss.db`). Override the data directory with `GLOSS_HOME`.
 
 ```bash
 gloss demo                        # seed a sample glossary (no API key needed)
+gloss paste                       # gloss whatever is in the clipboard (text or screenshot)
 gloss QUIC                        # look up / ingest a term
 gloss RAG -n "读 agent 文档时" -s "https://…"   # record context + source
 gloss RAG --refresh               # re-ask the model, keep history

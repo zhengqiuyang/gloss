@@ -42,6 +42,7 @@ $ gloss RAG
 - ⚡ **本地缓存**：重复查询零成本、可离线
 - 🔗 **自动关联**：相关概念互相链接，未收录的名字自动挂起、后续回填
 - 📝 **管道输入**：`pbpaste | gloss` 把一段话消化成摘要卡片，并提示值得单独收录的术语
+- 📋 **`gloss paste`**：免打字——直接读剪贴板，配合 `alias gp='gloss paste'` + [全局快捷键方案](extras/README.md)，复制即收录
 - 🖼 **`gloss img screenshot.png`**：用视觉模型解析截图/图表
 - 🔍 **全文搜索**（SQLite FTS5），覆盖词条、详情、标签
 - 📅 **`gloss review`**：本周新学复盘，按领域分组
@@ -80,6 +81,7 @@ gloss config set llm.model deepseek-chat
 
 ```bash
 gloss demo                        # 导入示例词库（无需 API key）
+gloss paste                       # 直接读剪贴板：文字 → 词条/摘要，截图 → 视觉解析
 gloss QUIC                        # 查询/收录一个术语
 gloss RAG -n "读 agent 文档时" -s "https://…"   # 记录语境和来源
 gloss RAG --refresh               # 忽略缓存重新生成，保留历史

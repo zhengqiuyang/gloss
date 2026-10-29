@@ -81,6 +81,23 @@ def img(image: str, note: str) -> None:
 
 
 @cli.command()
+def paste() -> None:
+    """直接读剪贴板：文字 → 词条/摘要，截图 → 视觉解析（需配置视觉模型）。
+
+    配合 alias 使用最顺手：alias gp='gloss paste'
+    """
+    from .clipboard import image_supported_hint, read_clipboard
+
+    kind, data = read_clipboard()
+    if kind == "image":
+        if not load_config()["llm"].get("vision_model"):
+            ui.console.print(f"[yellow]提示: {image_supported_hint()}[/yellow]")
+        ingest.ingest_image(data, note="")
+    else:
+        ingest.ingest_piped(data)
+
+
+@cli.command()
 @click.option("--clear", is_flag=True, help="删除之前 demo 导入的示例卡片")
 def demo(clear: bool) -> None:
     """导入一套示例词库（不需要 API key），体验浏览/搜索/关联。"""
