@@ -164,47 +164,53 @@ _PAGE = """<!doctype html>
 <style>
   :root {
     color-scheme: light dark;
-    --bg: light-dark(#f5f5f7, #1b1b1e);
-    --surface: light-dark(#ffffff, #26262b);
-    --border: light-dark(#e4e4e9, #37373c);
     --text: light-dark(#1d1d1f, #f2f2f5);
-    --text2: light-dark(#77777d, #a4a4ab);
-    --text3: light-dark(#3c3c43, #d6d6db);
+    --text2: light-dark(#6f6f76, #a3a3ab);
+    --text3: light-dark(#3a3a41, #d6d6db);
     --accent: #0a84ff;
     --amber: #ff9f0a;
     --purple: #bf5af2;
     --green: #30d158;
+    --stroke: light-dark(rgba(255,255,255,.65), rgba(255,255,255,.10));
+    --fill: light-dark(rgba(255,255,255,.60), rgba(32,32,38,.46));
   }
   * { box-sizing: border-box; margin: 0; }
-  html, body { height: 100%; }
+  html { height: 100%; background: transparent; }
   body {
+    height: 100%;
     font: 13.5px/1.6 -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
-    background: var(--bg); color: var(--text);
+    color: var(--text);
     -webkit-font-smoothing: antialiased;
+    background:
+      radial-gradient(820px 460px at -8% -12%, rgba(10,132,255,.22), transparent 62%),
+      radial-gradient(640px 400px at 108% -4%, rgba(191,90,242,.17), transparent 60%),
+      radial-gradient(680px 460px at 50% 118%, rgba(255,159,10,.12), transparent 62%),
+      light-dark(#eceef5, #141418);
   }
-  /* app 弹窗模式：衬在原生毛玻璃材质上，整体半透明、无投影 */
-  body.glass { background: transparent; }
+  /* app 弹窗（?glass=1）：底层渐变加一点透明度，若 WebView 透明生效则还能透出桌面模糊 */
   body.glass {
-    --bg: transparent;
-    --surface: light-dark(rgba(255,255,255,.66), rgba(36,36,41,.55));
-    --border: light-dark(rgba(0,0,0,.09), rgba(255,255,255,.10));
+    background:
+      radial-gradient(820px 460px at -8% -12%, rgba(10,132,255,.20), transparent 62%),
+      radial-gradient(640px 400px at 108% -4%, rgba(191,90,242,.15), transparent 60%),
+      radial-gradient(680px 460px at 50% 118%, rgba(255,159,10,.10), transparent 62%),
+      light-dark(rgba(236,238,245,.88), rgba(20,20,24,.86));
   }
-  body.glass .card { box-shadow: none; }
-  body.glass .searchbar { box-shadow: none; }
   .app { max-width: 720px; margin: 0 auto; padding: 12px 12px 16px; }
 
   .searchbar {
-    display: flex; align-items: center; gap: 9px;
-    background: var(--surface);
-    border: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+    background: var(--fill);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
     border-radius: 11px; padding: 8px 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    box-shadow: 0 4px 18px rgba(0,0,0,.07);
     position: sticky; top: 10px; z-index: 10;
     transition: border-color .16s, box-shadow .16s;
   }
   .searchbar:focus-within {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3.5px rgba(10,132,255,.16), 0 1px 3px rgba(0,0,0,.05);
+    border-color: rgba(10,132,255,.65);
+    box-shadow: 0 0 0 3px rgba(10,132,255,.15), 0 4px 18px rgba(0,0,0,.07);
   }
   .searchbar .icon { font-size: 15px; user-select: none; }
   #q {
@@ -213,12 +219,12 @@ _PAGE = """<!doctype html>
   }
   #q::placeholder { color: var(--text2); }
   kbd {
-    font: 11px ui-monospace, SFMono-Regular, monospace;
+    font: 10.5px ui-monospace, SFMono-Regular, monospace;
     color: var(--text2);
-    border: 1px solid var(--border); border-bottom-width: 2px;
-    border-radius: 5px; padding: 1px 6px; user-select: none;
+    border: 1px solid light-dark(rgba(0,0,0,.14), rgba(255,255,255,.16));
+    border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; user-select: none;
   }
-  .hint { color: var(--amber); font-size: 12.5px; margin: 8px 4px 0; min-height: 1.2em; }
+  .hint { color: var(--amber); font-size: 12px; margin: 7px 4px 0; min-height: 1.2em; }
 
   #out { margin-top: 10px; max-height: calc(100vh - 104px); overflow-y: auto;
          scrollbar-width: thin; }
@@ -226,10 +232,12 @@ _PAGE = """<!doctype html>
   #out::-webkit-scrollbar-thumb { background: rgba(128,128,128,.35); border-radius: 4px; }
 
   .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: var(--fill);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
     border-radius: 12px; padding: 13px 15px 12px; margin-bottom: 9px;
-    box-shadow: 0 8px 22px rgba(0,0,0,.07);
+    box-shadow: 0 8px 22px rgba(0,0,0,.08);
     animation: pop .24s cubic-bezier(.2, .9, .3, 1.15);
   }
   @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.985); } }
@@ -239,9 +247,9 @@ _PAGE = """<!doctype html>
     font-size: 10.5px; font-weight: 600; letter-spacing: .02em;
     padding: 2px 9px; border-radius: 999px;
   }
-  .badge.new { color: var(--accent); background: rgba(10,132,255,.13); }
-  .badge.hit { color: var(--green); background: rgba(48,209,88,.14); }
-  .hits { font-size: 11.5px; color: var(--text2); }
+  .badge.new { color: var(--accent); background: rgba(10,132,255,.14); }
+  .badge.hit { color: var(--green); background: rgba(48,209,88,.15); }
+  .hits { font-size: 11px; color: var(--text2); }
 
   h1 { font-size: 18px; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; }
   .aka { color: var(--text2); font-size: 11.5px; margin-top: 3px; }
@@ -250,56 +258,55 @@ _PAGE = """<!doctype html>
     margin: 10px 0 8px; padding: 6px 10px;
     font-weight: 600; font-size: 13px; line-height: 1.55;
     border-left: 3px solid var(--accent); border-radius: 8px;
-    background: rgba(10,132,255,.07);
+    background: rgba(10,132,255,.08);
   }
   .detail { font-size: 12.5px; color: var(--text3); white-space: pre-wrap; }
 
   .tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
   .tag {
     font-size: 10.5px; font-weight: 500; color: var(--purple);
-    background: rgba(191,90,242,.1); padding: 2px 8px; border-radius: 999px;
+    background: rgba(191,90,242,.12); padding: 2px 8px; border-radius: 999px;
   }
 
-  .section { margin-top: 11px; border-top: 1px solid var(--border); padding-top: 9px; }
+  .section { margin-top: 11px; border-top: 1px solid light-dark(rgba(0,0,0,.07), rgba(255,255,255,.08)); padding-top: 9px; }
   .label {
     font-size: 10.5px; font-weight: 700; color: var(--text2);
-    text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: .07em; margin-bottom: 5px;
   }
   .ln, .pd {
     display: flex; align-items: baseline; gap: 8px;
-    padding: 4px 8px; margin: 0 -8px; border-radius: 9px;
+    padding: 4px 8px; margin: 0 -8px; border-radius: 8px;
     cursor: pointer; text-decoration: none;
   }
-  .ln:hover, .pd:hover { background: rgba(10,132,255,.08); }
+  .ln:hover, .pd:hover { background: rgba(10,132,255,.09); }
   .ln .t { color: var(--accent); font-weight: 600; }
   .pd .t { color: var(--amber); font-weight: 600; }
   .ln small, .pd small { color: var(--text2); font-size: 11px; }
-
   .meta { margin-top: 12px; color: var(--text2); font-size: 10.5px; }
 
-  .kts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+  .kts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
   .kt {
     display: inline-block; cursor: pointer; font-size: 12px; font-weight: 500;
     padding: 4px 12px; border-radius: 999px;
-    background: rgba(255,159,10,.12); color: var(--amber);
+    background: rgba(255,159,10,.13); color: var(--amber);
     transition: transform .1s ease, background .1s ease;
   }
-  .kt:hover { transform: scale(1.05); background: rgba(255,159,10,.2); }
+  .kt:hover { transform: scale(1.05); background: rgba(255,159,10,.22); }
 
   .err {
-    background: rgba(255,69,58,.1); color: #ff453a;
+    background: rgba(255,69,58,.12); color: #ff453a;
     border-radius: 12px; padding: 12px 16px; font-size: 13px;
     white-space: pre-wrap; animation: pop .2s ease;
   }
   .spin {
-    color: var(--text2); text-align: center; padding: 22px 0; font-size: 14px;
+    color: var(--text2); text-align: center; padding: 22px 0; font-size: 13px;
     animation: pulse 1.1s ease-in-out infinite;
   }
   @keyframes pulse { 50% { opacity: .45; } }
 
-  .empty { text-align: center; color: var(--text2); padding: 48px 0 26px; }
+  .empty { text-align: center; color: var(--text2); padding: 42px 0 22px; }
   .empty .big { font-size: 28px; margin-bottom: 8px; }
-  .empty .slogan { font-size: 13px; color: var(--text3); margin-bottom: 12px; }
+  .empty .slogan { font-size: 13px; color: var(--text3); margin-bottom: 10px; }
   .empty .tips { font-size: 11.5px; line-height: 2; }
 </style>
 </head>

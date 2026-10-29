@@ -253,6 +253,11 @@ def _build_delegate_class():
             panel.contentView().addSubview_(effect)
 
             conf = WebKit.WKWebViewConfiguration.alloc().init()
+            try:
+                # 新系统上可能失效（页面自身有玻璃拟态兜底），生效则能透出桌面模糊
+                conf.setValue_forKey_(False, "drawsBackground")
+            except Exception:
+                pass
             webview = WebKit.WKWebView.alloc().initWithFrame_configuration_(
                 F.NSMakeRect(0, 0, 500, 380), conf
             )
