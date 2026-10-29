@@ -156,6 +156,7 @@ def run_hotkey() -> None:
 
     from .ui import console
 
+    _start_tray()
     if _native_available():
         console.print("[green]📖 gloss 热键已启动[/green]（原生无边框卡片，呼出键见下 · Esc 关窗）")
         threading.Thread(target=_hotkey_loop, kwargs={"raise_errors": False}, daemon=True).start()
@@ -172,6 +173,56 @@ def run_hotkey() -> None:
             "安装 pywebview 可升级为无边框卡片: uv tool install --reinstall -e '.[app]'）"
         )
         _hotkey_loop(raise_errors=True)
+
+
+def _start_tray() -> None:
+    """📖 in the system tray — the counterpart of the macOS menu-bar item.
+
+    Double-click pops the card, right-click quits. Skips silently when
+    pystray/Pillow are not installed (the hotkey works either way).
+    """
+    try:
+        import pystray
+        from PIL import Image, ImageDraw
+    except Exception:
+        return
+
+    def on_quit(icon, item) -> None:
+        os._exit(0)
+
+    def on_pop(icon, item) -> None:
+        threading.Thread(target=_trigger, daemon=True).start()
+
+    try:
+        icon = pystray.Icon(
+            "gloss",
+            _tray_image(Image, ImageDraw),
+            "gloss — 复制后 Ctrl+G 呼出卡片",
+            pystray.Menu(
+                pystray.MenuItem("呼出卡片", on_pop, default=True),
+                pystray.MenuItem("退出", on_quit),
+            ),
+        )
+        threading.Thread(target=icon.run, daemon=True).start()
+    except Exception:
+        return
+
+
+def _tray_image(Image, ImageDraw):
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle([4, 4, 60, 60], radius=14, fill=(10, 132, 255, 255))
+    try:
+        from PIL import ImageFont
+
+        font = ImageFont.truetype("segoeui.ttf", 38)
+    except Exception:
+        font = None
+    if font is not None:
+        d.text((32, 33), "g", font=font, fill="white", anchor="mm")
+    else:
+        d.text((26, 20), "g", fill="white")
+    return img
 
 
 def _hotkey_loop(raise_errors: bool) -> None:
@@ -303,6 +354,14 @@ def _show_native_popup(port: int) -> None:
             hwnd = user32.FindWindowW(None, _POPUP_TITLE)
             if not hwnd:
                 return
+            # a frameless window still gets a taskbar button by default;
+            # WS_EX_TOOLWINDOW removes it (and the alt-tab entry)
+            GWL_EXSTYLE, WS_EX_TOOLWINDOW = -20, 0x00000080
+            user32.ShowWindow(hwnd, 0)
+            user32.SetWindowLongW(
+                hwnd, GWL_EXSTYLE, user32.GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW
+            )
+            user32.ShowWindow(hwnd, 5)
             user32.SetForegroundWindow(hwnd)
             if user32.GetForegroundWindow() != hwnd:
                 user32.keybd_event(0x12, 0, 0, 0)  # ALT down

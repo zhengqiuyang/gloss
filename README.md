@@ -59,7 +59,7 @@ for you, and keeps every one of them.
 |---|---|
 | Core CLI — lookup, glossary, edit/rm, translate, review, stats, export, `gloss serve`, `gloss demo` | **Cross-platform** (any Python 3.9+; runtime deps only click/rich/openai) |
 | `gloss paste` (clipboard capture: text + screenshots) | **macOS & Windows** — pbpaste/pasteboard and Win32 clipboard + PowerShell; Linux needs adapters (see `src/gloss/clipboard.py`) |
-| `gloss hotkey` (global-hotkey popup) | **Windows only** — Win32 `RegisterHotKey`, zero deps; pops a frameless, always-on-top card (WebView2 via pywebview, in the `.[app]` extra; falls back to a Chrome `--app` window without it). macOS counterpart: `gloss app` |
+| `gloss hotkey` (global-hotkey popup) | **Windows only** — Win32 `RegisterHotKey`, zero deps; pops a frameless, always-on-top card that stays off the taskbar (WebView2 via pywebview, in the `.[app]` extra; falls back to a Chrome `--app` window without it). Resident as a system-tray 📖 icon: double-click pops, right-click quits. macOS counterpart: `gloss app` |
 | `gloss app` (menu bar + ⌘G popup) | **macOS only** — pyobjc, Carbon hotkey |
 | Linux | Core CLI and `gloss serve` work today; clipboard capture, hotkey popup and the native panel need adapters (contributions welcome — see `src/gloss/clipboard.py`) |
 

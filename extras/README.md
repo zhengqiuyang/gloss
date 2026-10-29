@@ -101,10 +101,14 @@ gloss hotkey --no-startup # 移除开机自启
 ```
 
 按下热键后：自动确保 `gloss serve` 在跑（没跑就静默拉起），弹出**无边框
-置顶卡片**——WebView2 原生窗口，顶部条可拖动，和 macOS `gloss app` 的浮窗
-同源；剪贴板里的文字或 `Win+Shift+S` 截图**立即出卡**，`Esc` 关窗回阅读。
-没装 `.[app]` extra（pywebview）时自动回退 Chrome `--app` 窗口：功能相同，
-外观带浏览器边框。
+置顶卡片**——WebView2 原生窗口，不占任务栏和 Alt-Tab，顶栏可拖动；和
+macOS `gloss app` 的浮窗同源；剪贴板里的文字或 `Win+Shift+S` 截图**立即
+出卡**，`Esc` 或右上角 ✕ 关窗回阅读。没装 `.[app]` extra（pywebview）时
+自动回退 Chrome `--app` 窗口：功能相同，外观带浏览器边框。
+
+常驻形态是**系统托盘的 📖 图标**（时钟附近，即 macOS 菜单栏图标的对应物）：
+双击呼出卡片，右键「退出」。没装 `.[app]` extra 时无图标，进程仍驻留，
+退出用热键 Ctrl+Alt+Shift+G。
 想换组合（与 macOS 共用同一个配置键）：
 
 ```bash

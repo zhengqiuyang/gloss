@@ -43,11 +43,13 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
-# 平台专属 GUI：macOS 菜单栏应用用 pyobjc，Windows 原生无边框弹窗用 pywebview(WebView2)
+# 平台专属 GUI：macOS 菜单栏应用用 pyobjc，Windows 原生无边框弹窗用 pywebview(WebView2) + 托盘图标(pystray)
 app = [
     "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",
     "pyobjc-framework-WebKit>=10.0; sys_platform == 'darwin'",
     "pywebview>=5.0; sys_platform == 'win32'",
+    "pystray>=0.19; sys_platform == 'win32'",
+    "pillow>=10.0; sys_platform == 'win32'",
 ]
 
 [project.scripts]
