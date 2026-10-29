@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from . import db
 from . import llm as llm_mod
@@ -194,3 +194,73 @@ def translate_text(text: str) -> Dict[str, Any]:
         "hits": 0,
         "tokens": tokens,
     }
+
+
+def patch_card(
+    card: Card,
+    *,
+    term: Optional[str] = None,
+    one_liner: Optional[str] = None,
+    detail: Optional[str] = None,
+    source: Optional[str] = None,
+    context: Optional[str] = None,
+    aliases: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+    related: Optional[List[str]] = None,
+    additive: bool = False,
+) -> Dict[str, Any]:
+    """Patch card fields (UI-free). None leaves a field untouched.
+
+    additive=True extends alias/tag/related lists instead of replacing them.
+    Renaming keeps the old name as an alias; renaming onto an existing card
+    is rejected. After saving, related names re-resolve (new links, pending
+    backfill) exactly like a fresh ingest.
+    """
+    old_term: Optional[str] = None
+    if term is not None:
+        new = term.strip()
+        if not new:
+            raise GlossError("词条名不能为空")
+        if norm_term(new) != card.norm:
+            other = db.get_card(new)
+            if other is not None and other.id != card.id:
+                raise GlossError(f"词库里已有 {other.term!r}，改名会冲突")
+            old_term = card.term
+            card.term = new
+
+    def merge(current: List[str], items: List[str], mode: str) -> List[str]:
+        items = [i.strip() for i in items if i and i.strip()]
+        if mode == "replace":
+            return items
+        out = list(current)
+        for i in items:
+            if norm_term(i) not in map(norm_term, out):
+                out.append(i)
+        return out
+
+    mode = "extend" if additive else "replace"
+    if one_liner is not None:
+        card.one_liner = one_liner.strip()
+    if detail is not None:
+        card.detail = detail.strip()
+    if source is not None:
+        card.source = source.strip()
+    if context is not None:
+        card.context = context.strip()
+    if aliases is not None:
+        card.aliases = merge(card.aliases, aliases, mode)
+    if tags is not None:
+        card.tags = [t.lower() for t in merge(card.tags, tags, mode)]
+    if related is not None:
+        card.related_names = merge(card.related_names, related, mode)
+
+    # 旧名转别名放在最后，避免被 aliases 的整体替换冲掉
+    if old_term is not None and norm_term(old_term) not in map(norm_term, card.aliases):
+        card.aliases.insert(0, old_term)
+
+    card.updated_at = now_iso()
+    db.update_card(card)
+    linked, pending = db.resolve_related(card)
+    backfilled = db.backfill_links(card.id, card.norm)
+    return {"card": card, "cache_hit": False, "linked": linked,
+            "pending": pending, "backfilled": backfilled}

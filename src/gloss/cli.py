@@ -189,6 +189,139 @@ def tr(text: Tuple[str, ...]) -> None:
 
 
 @cli.command()
+@click.argument("name", nargs=-1, required=True)
+@click.option("-y", "--yes", is_flag=True, help="跳过确认")
+def rm(name: Tuple[str, ...], yes: bool) -> None:
+    """删除一张卡片及其所有关联。"""
+    card = db.get_card(" ".join(name))
+    if card is None:
+        raise GlossError(
+            f"本地没有这张卡片。最近收录: {_recent_terms()}"
+        )
+    if not yes:
+        click.confirm(f"确定删除 {card.term!r}？其别名与关联会一并移除。", abort=True)
+    db.delete_card(card.id)
+    ui.console.print(f"[green]✓ 已删除 {card.term}[/green]")
+
+
+_EDIT_HEADER = """<!--
+gloss 卡片编辑器：保存并退出即应用；没有任何改动或删除整个文件则取消。
+- term 改名后旧名字会自动转为别名
+- aliases / tags / related 用逗号分隔；related 里未收录的词会先挂起，
+  之后 gloss 它们时自动建链
+- 注释行不会保存
+-->
+
+"""
+
+
+def _card_to_editable(card) -> str:
+    lines = [_EDIT_HEADER]
+    lines.append(f"term: {card.term}")
+    lines.append(f"aliases: {', '.join(card.aliases)}")
+    lines.append(f"tags: {', '.join(card.tags)}")
+    if card.source:
+        lines.append(f"source: {card.source}")
+    if card.context:
+        lines.append(f"context: {card.context}")
+    lines.append(f"related: {', '.join(card.related_names)}")
+    lines.append("")
+    lines.append(card.one_liner)
+    lines.append("")
+    lines.append(card.detail)
+    return "\n".join(lines)
+
+
+def _parse_editable(text: str) -> dict:
+    import re as _re
+
+    text = _re.sub(r"<!--.*?-->", "", text, flags=_re.S)
+    lines = text.splitlines()
+    fields: dict = {}
+    keys = {"term", "aliases", "tags", "source", "context", "related"}
+    i = 0
+    while i < len(lines) and not lines[i].strip():
+        i += 1  # 注释删除后残留的前导空行
+    while i < len(lines) and lines[i].strip():
+        line = lines[i]
+        if ":" not in line:
+            raise GlossError(f"无法识别的行: {line!r}（字段行应为 key: value 格式）")
+        key, _, value = line.partition(":")
+        key = key.strip().lower()
+        if key not in keys:
+            raise GlossError(f"无法识别的字段: {key!r}")
+        fields[key] = value.strip()
+        i += 1
+    if "term" not in fields or not fields["term"]:
+        raise GlossError("term 不能为空")
+    def split(key):
+        return [v.strip() for v in fields.get(key, "").split(",") if v.strip()]
+    body = [ln for ln in lines[i:]]
+    while body and not body[0].strip():
+        body.pop(0)
+    if not body:
+        raise GlossError("卡片正文不能为空（至少保留一句话定义）")
+    one_liner = body.pop(0).strip()
+    detail = "\n".join(body).strip()
+    return {
+        "term": fields["term"],
+        "aliases": split("aliases"),
+        "tags": split("tags"),
+        "source": fields.get("source", "") or None,
+        "context": fields.get("context", "") or None,
+        "related": split("related"),
+        "one_liner": one_liner,
+        "detail": detail or None,
+    }
+
+
+@cli.command()
+@click.argument("name", nargs=-1, required=True)
+@click.option("--term", "opt_term", default=None, help="改词条名（旧名自动转为别名）")
+@click.option("--one-liner", "opt_one_liner", default=None, help="改一句话定义")
+@click.option("--detail", "opt_detail", default=None, help="改详情")
+@click.option("--source", "opt_source", default=None, help="改来源")
+@click.option("-n", "--note", "opt_context", default=None, help="改语境备注")
+@click.option("--add-alias", multiple=True, help="追加别名（可多次）")
+@click.option("--add-tag", multiple=True, help="追加标签（可多次）")
+@click.option("--add-related", multiple=True, help="补充关联概念（可多次）")
+def edit(name: Tuple[str, ...], opt_term, opt_one_liner, opt_detail, opt_source,
+         opt_context, add_alias, add_tag, add_related) -> None:
+    """编辑卡片：带字段参数直接修改；不带则用 $EDITOR 打开整卡编辑。"""
+    card = db.get_card(" ".join(name))
+    if card is None:
+        raise GlossError(
+            f"本地没有这张卡片。最近收录: {_recent_terms()}"
+        )
+
+    scalar_given = any(v is not None for v in
+                       (opt_term, opt_one_liner, opt_detail, opt_source, opt_context))
+    if scalar_given or add_alias or add_tag or add_related:
+        result = ingest.patch_card(
+            card,
+            term=opt_term,
+            one_liner=opt_one_liner,
+            detail=opt_detail,
+            source=opt_source,
+            context=opt_context,
+            aliases=list(add_alias) or None,
+            tags=list(add_tag) or None,
+            related=list(add_related) or None,
+            additive=True,
+        )
+    else:
+        edited = click.edit(text=_card_to_editable(card), extension=".md")
+        if edited is None:
+            ui.console.print("[dim]未做修改。[/dim]")
+            return
+        result = ingest.patch_card(card, **_parse_editable(edited))
+
+    r = result
+    ui.render_card(r["card"], cache_hit=False, linked=r["linked"],
+                   pending=r["pending"], backfilled=r["backfilled"])
+
+
+@cli.command()
 @click.option("--clear", is_flag=True, help="删除之前 demo 导入的示例卡片")
 def demo(clear: bool) -> None:
     """导入一套示例词库（不需要 API key），体验浏览/搜索/关联。"""
