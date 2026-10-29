@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gloss-cli"
+version = "0.1.0"
+description = "Learn a term once, own it forever — a local-first, AI-powered personal glossary."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "gloss contributors" }]
+keywords = [
+    "glossary",
+    "knowledge-base",
+    "knowledge-management",
+    "cli",
+    "llm",
+    "personal-knowledge-management",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Indexing",
+]
+dependencies = [
+    "click>=8.1",
+    "rich>=13.0",
+    "openai>=1.40",
+    "tomli-w>=1.0",
+    'tomli>=2.0; python_version < "3.11"',
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+gloss = "gloss.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/YOUR_USERNAME/gloss"
+Issues = "https://github.com/YOUR_USERNAME/gloss/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gloss"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

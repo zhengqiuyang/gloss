@@ -1,0 +1,155 @@
+"""The lookup-or-ingest flow: local cache first, LLM only on a miss."""
+
+from __future__ import annotations
+
+import re
+from typing import Any, Dict, List, Optional
+
+from . import db
+from . import llm as llm_mod
+from .config import load_config
+from .models import Card, GlossError, TYPE_SNIPPET, TYPE_TERM, norm_term, now_iso
+from . import ui
+
+# A "term" is short, single-line input; anything longer is a snippet to digest.
+TERM_MAX_CHARS = 80
+
+
+def _known_terms() -> List[str]:
+    cfg = load_config()
+    return db.all_terms(limit=cfg["glossary"]["max_known_terms"])
+
+
+def lookup_or_ingest(
+    term: str,
+    note: str = "",
+    source: str = "",
+    refresh: bool = False,
+) -> None:
+    term = " ".join(term.split())
+    if not term:
+        raise GlossError("请提供一个术语")
+    existing = db.get_card(term)
+    if existing and not refresh:
+        db.increment_hit(existing.id)
+        existing.hit_count += 1  # keep the in-memory card in sync for display
+        ui.render_card(existing, cache_hit=True)
+        return
+
+    known = _known_terms()
+    data, tokens = llm_mod.get_client().explain_term(term, known, context=note, source=source)
+    card = _card_from_llm(data, term=term, note=note, source=source, tokens=tokens)
+    if norm_term(card.term) != norm_term(term) and db.get_card(card.term) is not None:
+        # The LLM's normalized name collides with an existing card; keep the
+        # user's spelling as the canonical term and the payload name as an alias.
+        payload_name = card.term
+        card.term = term
+        card.aliases = [a for a in card.aliases if norm_term(a) != norm_term(term)]
+        if norm_term(payload_name) not in map(norm_term, card.aliases):
+            card.aliases.insert(0, payload_name)
+
+    linked, pending = [], []
+    if existing:  # --refresh keeps identity and history, replaces content
+        existing.aliases = card.aliases
+        existing.one_liner = card.one_liner
+        existing.detail = card.detail
+        existing.tags = card.tags
+        existing.related_names = card.related_names
+        existing.source = source or existing.source
+        existing.context = note or existing.context
+        existing.tokens_used += tokens
+        existing.updated_at = now_iso()
+        db.update_card(existing)
+        card = existing
+    else:
+        db.insert_card(card)
+
+    linked, pending = db.resolve_related(card)
+    backfilled = db.backfill_links(card.id, card.norm) if card.id else []
+    ui.render_card(card, cache_hit=False, linked=linked, pending=pending, backfilled=backfilled)
+
+
+def _card_from_llm(
+    data: Dict[str, Any],
+    term: str,
+    note: str,
+    source: str,
+    tokens: int,
+) -> Card:
+    aliases = _as_list(data.get("aliases"))
+    name = str(data.get("term") or term).strip() or term
+    # The LLM may normalize the name; keep the user's spelling as an alias.
+    if norm_term(name) != norm_term(term) and norm_term(term) not in map(norm_term, aliases):
+        aliases.insert(0, term)
+    return Card(
+        term=name,
+        type=TYPE_TERM,
+        aliases=aliases,
+        one_liner=str(data.get("one_liner") or "").strip(),
+        detail=str(data.get("detail") or "").strip(),
+        tags=[t.lower().strip() for t in _as_list(data.get("tags"))],
+        related_names=_as_list(data.get("related")),
+        source=source,
+        context=note,
+        tokens_used=tokens,
+    )
+
+
+def _as_list(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(v).strip() for v in value if str(v).strip()]
+
+
+def ingest_piped(text: str) -> None:
+    """Route piped stdin: short single line → term lookup, longer → snippet digest."""
+    text = text.strip()
+    if not text:
+        raise GlossError("没有从管道读到内容")
+    if len(text) <= TERM_MAX_CHARS and "\n" not in text:
+        lookup_or_ingest(text)
+        return
+    known = _known_terms()
+    data, tokens = llm_mod.get_client().digest_text(text, known)
+    title = str(data.get("title") or "").strip() or text[:40]
+    title = _unique_title(title)
+    card = Card(
+        term=title,
+        type=TYPE_SNIPPET,
+        one_liner=str(data.get("one_liner") or "").strip(),
+        detail=str(data.get("detail") or "").strip(),
+        tags=[t.lower().strip() for t in _as_list(data.get("tags"))],
+        related_names=[],
+        tokens_used=tokens,
+    )
+    db.insert_card(card)
+    key_terms = _as_list(data.get("key_terms"))
+    ui.render_digest(card, key_terms)
+
+
+def ingest_image(image_path: str, note: str = "") -> None:
+    known = _known_terms()
+    data, tokens = llm_mod.get_client().analyze_image(image_path, note, known)
+    title = str(data.get("title") or "").strip() or "image snippet"
+    title = _unique_title(title)
+    card = Card(
+        term=title,
+        type=TYPE_SNIPPET,
+        one_liner=str(data.get("one_liner") or "").strip(),
+        detail=str(data.get("detail") or "").strip(),
+        tags=[t.lower().strip() for t in _as_list(data.get("tags"))],
+        source=image_path,
+        context=note,
+        tokens_used=tokens,
+    )
+    db.insert_card(card)
+    ui.render_digest(card, _as_list(data.get("key_terms")))
+
+
+def _unique_title(title: str) -> str:
+    title = re.sub(r"\s+", " ", title)[:80].strip()
+    candidate, n = title, 2
+    while db.get_card(candidate):
+        candidate = f"{title} ({n})"
+        n += 1
+    return candidate
