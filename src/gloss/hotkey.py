@@ -1,18 +1,15 @@
 """Windows global-hotkey popup: the `gloss app` counterpart for Windows.
 
-Registers a system-wide hotkey via RegisterHotKey (no dependencies). On
-trigger it ensures `gloss serve` is running, then opens a popup card:
+Registers a system-wide hotkey via RegisterHotKey (no dependencies). The
+card window is created ONCE, hidden, at startup — with its events wired
+before the GUI loop starts, so there are no show-time races — and every
+hotkey press just reloads the page (fresh clipboard prefill) and shows it.
+Esc/✕ hide the window; nothing is ever created or destroyed at press time.
 
-- native (preferred): a frameless, always-on-top WebView2 window via
-  pywebview — the same card HTML the macOS `gloss app` wraps, minus the
-  browser chrome. Esc closes, the top strip drags.
-- fallback: a Chrome/Edge `--app` window (still usable, but carries
-  browser chrome).
-
-The hotkey spec comes from the same config key as macOS (`app.hotkey`,
-e.g. "ctrl+g"). "cmd" is read as the Win key on Windows; Win+G is
-reserved by the Xbox Game Bar, so a failing registration falls back to
-ctrl+g with a notice. Ctrl+Alt+Shift+G always quits the process.
+The hotkey spec comes from the same config key as macOS (`app.hotkey`).
+"cmd" is read as the Win key on Windows; Win+G is reserved by the Xbox
+Game Bar, so a failing registration falls back to ctrl+g with a notice.
+Ctrl+Alt+Shift+G quits the process.
 """
 
 from __future__ import annotations
@@ -56,26 +53,9 @@ _CHROME_PATHS = [
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
 ]
 
-_POPUP: dict = {"win": None}
+_CARD: dict = {"win": None}
 _NATIVE: Optional[bool] = None
-GWLP_HWNDPARENT = -28  # sets the OWNER window; owned windows never get a taskbar button
 
-
-def _plog(message: str) -> None:
-    """Black-box recorder for the popup: GLOSS_HOME/popup.log."""
-    try:
-        from .config import gloss_home
-        from .models import now_iso
-
-        with open(gloss_home() / "popup.log", "a", encoding="utf-8") as f:
-            f.write(f"{now_iso()} {message}\n")
-    except Exception:
-        pass
-
-# A dedicated top strip: drag area on the left, visible close button on the
-# right. The searchbar is nearly all input field, so it must not be the drag
-# handle. Also rebinds Escape (the page's own window.close() is ignored by
-# Chromium for non-script-opened windows) and focuses the input.
 _INJECT_CSS = """
 #gloss-native-bar {
   position: fixed; top: 0; left: 0; right: 0; height: 30px;
@@ -169,13 +149,15 @@ def run_hotkey() -> None:
 
     from .ui import console
 
-    _start_tray()
     if _native_available():
         console.print("[green]📖 gloss 热键已启动[/green]（原生无边框卡片，呼出键见下 · Esc 关窗）")
+        # the card is created once, hidden, with events wired BEFORE the GUI
+        # loop starts — every later press only reloads and shows it
+        _create_card(load_config()["serve"]["port"])
         threading.Thread(target=_hotkey_loop, kwargs={"raise_errors": False}, daemon=True).start()
         import webview
 
-        # hidden sentinel keeps the GUI loop alive; popups are created on demand
+        # hidden sentinel keeps the GUI loop alive
         webview.create_window(
             "gloss", html="<html></html>", width=1, height=1, frameless=True, hidden=True
         )
@@ -186,56 +168,6 @@ def run_hotkey() -> None:
             "安装 pywebview 可升级为无边框卡片: uv tool install --reinstall -e '.[app]'）"
         )
         _hotkey_loop(raise_errors=True)
-
-
-def _start_tray() -> None:
-    """📖 in the system tray — the counterpart of the macOS menu-bar item.
-
-    Double-click pops the card, right-click quits. Skips silently when
-    pystray/Pillow are not installed (the hotkey works either way).
-    """
-    try:
-        import pystray
-        from PIL import Image, ImageDraw
-    except Exception:
-        return
-
-    def on_quit(icon, item) -> None:
-        os._exit(0)
-
-    def on_pop(icon, item) -> None:
-        threading.Thread(target=_trigger, daemon=True).start()
-
-    try:
-        icon = pystray.Icon(
-            "gloss",
-            _tray_image(Image, ImageDraw),
-            "gloss — 复制后 Ctrl+G 呼出卡片",
-            pystray.Menu(
-                pystray.MenuItem("呼出卡片", on_pop, default=True),
-                pystray.MenuItem("退出", on_quit),
-            ),
-        )
-        threading.Thread(target=icon.run, daemon=True).start()
-    except Exception:
-        return
-
-
-def _tray_image(Image, ImageDraw):
-    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle([4, 4, 60, 60], radius=14, fill=(10, 132, 255, 255))
-    try:
-        from PIL import ImageFont
-
-        font = ImageFont.truetype("segoeui.ttf", 38)
-    except Exception:
-        font = None
-    if font is not None:
-        d.text((32, 33), "g", font=font, fill="white", anchor="mm")
-    else:
-        d.text((26, 20), "g", fill="white")
-    return img
 
 
 def _hotkey_loop(raise_errors: bool) -> None:
@@ -285,29 +217,11 @@ def _hotkey_loop(raise_errors: bool) -> None:
         user32.DispatchMessageW(ptr)
 
 
-def detach() -> None:
-    """Spawn a windowless resident `gloss hotkey` and return immediately.
-
-    Prefers pythonw.exe so no console is ever created — nothing shows up
-    in the taskbar no matter how this was launched.
-    """
-    pythonw = Path(sys.executable).with_name("pythonw.exe")
-    exe = str(pythonw) if pythonw.exists() else sys.executable
-    subprocess.Popen(
-        [exe, "-m", "gloss", "hotkey"],
-        creationflags=CREATE_NO_WINDOW,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        cwd=os.environ.get("SystemRoot", "."),
-    )
-
-
 def _trigger() -> None:
     port = load_config()["serve"]["port"]
     _ensure_serve(port)
     if _native_available():
-        _show_native_popup(port)
+        _show_card(port)
     else:
         _open_browser_popup(port)
 
@@ -335,31 +249,25 @@ def _ensure_serve(port: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# popups
+# the card window (created once, reused forever)
 # ---------------------------------------------------------------------------
 
 class _PopupApi:
     """Exposed to the page as window.pywebview.api."""
 
     def close_popup(self) -> None:
-        win = _POPUP.get("win")
+        win = _CARD.get("win")
         if win is not None:
-            win.destroy()
+            win.hide()
 
 
-def _show_native_popup(port: int) -> None:
+def _create_card(port: int):
+    """Create the hidden card window once; later calls return it unchanged."""
     import webview
 
-    old = _POPUP.get("win")
-    if old is not None:
-        try:
-            old.destroy()
-        except Exception:
-            pass
-        _POPUP["win"] = None
+    if _CARD.get("win") is not None:
+        return _CARD["win"]
 
-    # created hidden: the TOOLWINDOW style is applied while invisible, so the
-    # taskbar never creates a button for the card in the first place
     win = webview.create_window(
         _POPUP_TITLE,
         f"http://127.0.0.1:{port}/?glass=1",
@@ -371,37 +279,23 @@ def _show_native_popup(port: int) -> None:
         easy_drag=False,
         hidden=True,
     )
-    _POPUP["win"] = win
-    state = {"revealed": False}
+    state = {"styled": False}
 
-    # runs on the GUI thread before every Show() (including pywebview's
-    # Opacity dance for hidden windows): the WinForms-level opt-out governs
-    # all handle (re)creations, so the taskbar never gets a button
+    # wired before the GUI loop starts, so this always runs before the first
+    # Show() (GUI thread) — no race, and it governs handle re-creations too
     def on_before_show() -> None:
         try:
             form = getattr(win, "native", None)
             if form is not None:
                 form.ShowInTaskbar = False
-            user32 = ctypes.windll.user32
-            hwnd = form.Handle.ToInt64() if form is not None else user32.FindWindowW(None, _POPUP_TITLE)
-            # the deterministic kill switch: an owned window never gets a
-            # taskbar button, whatever the style race does. the hidden
-            # sentinel is our owner — it lives as long as the process.
-            owner = user32.FindWindowW(None, "gloss")
-            if hwnd and owner:
-                set_owner = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
-                set_owner(hwnd, GWLP_HWNDPARENT, owner)
-            _plog(f"before_show hwnd={hwnd} owner={owner} native={form is not None}")
-        except Exception as exc:
-            _plog(f"before_show ERR {exc!r}")
+        except Exception:
+            pass
 
-    def reveal() -> None:
-        if state["revealed"]:
-            return
+    def on_loaded() -> None:
         try:
-            user32 = ctypes.windll.user32
-
-            def apply_style():
+            win.evaluate_js(_INJECT_JS)
+            if not state["styled"]:
+                user32 = ctypes.windll.user32
                 hwnd = user32.FindWindowW(None, _POPUP_TITLE)
                 if hwnd:
                     GWL_EXSTYLE, WS_EX_TOOLWINDOW = -20, 0x00000080
@@ -409,67 +303,35 @@ def _show_native_popup(port: int) -> None:
                         hwnd, GWL_EXSTYLE,
                         user32.GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW,
                     )
-                    owner = user32.FindWindowW(None, "gloss")
-                    if owner:
-                        set_owner = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
-                        set_owner(hwnd, GWLP_HWNDPARENT, owner)
-                return hwnd
+                    state["styled"] = True
+        except Exception:
+            pass
 
-            hwnd = apply_style()
-            win.show()  # thread-safe (marshals to the GUI thread internally)
-            state["revealed"] = True
-            hwnd = apply_style()  # re-apply in case showing recreated the handle
-            # a hotkey-triggered window is born while another app owns the
-            # foreground; without this the card never gets keyboard focus and
-            # Esc is dead. the ALT tap defeats the foreground lock if needed.
+    win.events.before_show += on_before_show
+    win.events.loaded += on_loaded
+    _CARD["win"] = win
+    return win
+
+
+def _show_card(port: int) -> None:
+    win = _create_card(port)
+    # reload: the page prefills from the clipboard and looks up on load
+    win.load_url(f"http://127.0.0.1:{port}/?glass=1")
+    win.show()
+    # a hotkey-triggered window is born while another app owns the
+    # foreground; without this the card never gets keyboard focus and
+    # Esc is dead. the ALT tap defeats the foreground lock if needed.
+    try:
+        user32 = ctypes.windll.user32
+        hwnd = user32.FindWindowW(None, _POPUP_TITLE)
+        if hwnd:
             user32.SetForegroundWindow(hwnd)
             if user32.GetForegroundWindow() != hwnd:
                 user32.keybd_event(0x12, 0, 0, 0)  # ALT down
                 user32.SetForegroundWindow(hwnd)
                 user32.keybd_event(0x12, 0, 2, 0)  # ALT up
-            ex = user32.GetWindowLongW(hwnd, -20) if hwnd else 0
-            _plog(
-                f"revealed hwnd={hwnd} visible={bool(user32.IsWindowVisible(hwnd))} "
-                f"exstyle={ex:#x} toolwindow={bool(ex & 0x80)} "
-                f"fg={user32.GetForegroundWindow() == hwnd}"
-            )
-            # watchdog: whatever races with the styles (handle recreation,
-            # WinForms churn), strip a re-appearing taskbar style loss within
-            # 400ms for as long as the card is open
-            def guard():
-                end = time.time() + 60
-                while time.time() < end:
-                    time.sleep(0.4)
-                    try:
-                        h = user32.FindWindowW(None, _POPUP_TITLE)
-                        if not h or not user32.IsWindowVisible(h):
-                            return  # card closed
-                        ex = user32.GetWindowLongW(h, -20)
-                        if not (ex & 0x80):
-                            apply_style()
-                            _plog(f"guard re-applied (exstyle was {ex:#x})")
-                    except Exception:
-                        return
-            threading.Thread(target=guard, daemon=True).start()
-        except Exception as exc:
-            _plog(f"reveal ERR {exc!r}")
-
-    def on_loaded() -> None:
-        try:
-            win.evaluate_js(_INJECT_JS)
-        except Exception:
-            pass
-        reveal()
-
-    def on_closed() -> None:
-        if _POPUP.get("win") is win:
-            _POPUP["win"] = None
-
-    win.events.before_show += on_before_show
-    win.events.loaded += on_loaded
-    win.events.closed += on_closed
-    # fallback in case `loaded` is late or missed while hidden
-    threading.Timer(1.5, lambda: threading.Thread(target=reveal, daemon=True).start()).start()
+    except Exception:
+        pass
 
 
 def _open_browser_popup(port: int) -> None:
@@ -483,9 +345,9 @@ def _open_browser_popup(port: int) -> None:
 
 
 def _open_popup(port: int) -> None:
-    """Kept as the decision entry point (tests target this)."""
+    """Decision entry point (tests target this)."""
     if _native_available():
-        _show_native_popup(port)
+        _show_card(port)
     else:
         _open_browser_popup(port)
 
@@ -521,3 +383,21 @@ def remove_startup() -> bool:
         path.unlink()
         return True
     return False
+
+
+def detach() -> None:
+    """Spawn a windowless resident `gloss hotkey` and return immediately.
+
+    Prefers pythonw.exe so no console is ever created — nothing shows up
+    in the taskbar no matter how this was launched.
+    """
+    pythonw = Path(sys.executable).with_name("pythonw.exe")
+    exe = str(pythonw) if pythonw.exists() else sys.executable
+    subprocess.Popen(
+        [exe, "-m", "gloss", "hotkey"],
+        creationflags=CREATE_NO_WINDOW,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        cwd=os.environ.get("SystemRoot", "."),
+    )

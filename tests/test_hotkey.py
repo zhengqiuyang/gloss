@@ -70,7 +70,7 @@ def test_open_browser_popup_prefers_chrome_then_edge(monkeypatch):
 
 def test_open_popup_routes_native_vs_browser(monkeypatch):
     calls = []
-    monkeypatch.setattr(hotkey, "_show_native_popup", lambda p: calls.append(("native", p)))
+    monkeypatch.setattr(hotkey, "_show_card", lambda p: calls.append(("native", p)))
     monkeypatch.setattr(hotkey, "_open_browser_popup", lambda p: calls.append(("browser", p)))
 
     monkeypatch.setattr(hotkey, "_native_available", lambda: True)
@@ -80,6 +80,55 @@ def test_open_popup_routes_native_vs_browser(monkeypatch):
     monkeypatch.setattr(hotkey, "_native_available", lambda: False)
     hotkey._open_popup(7789)
     assert calls == [("native", 7789), ("browser", 7789)]
+
+
+def test_card_created_once_and_hidden_on_close(monkeypatch):
+    import sys
+    import types
+
+    class FakeEvents:
+        def __init__(self):
+            self.handlers = []
+
+        def __iadd__(self, handler):
+            self.handlers.append(handler)
+            return self
+
+    class FakeWin:
+        def __init__(self):
+            self.events = types.SimpleNamespace(before_show=FakeEvents(), loaded=FakeEvents())
+            self.urls = []
+            self.shown = False
+
+        def hide(self):
+            self.shown = False
+
+        def show(self):
+            self.shown = True
+
+        def load_url(self, url):
+            self.urls.append(url)
+
+        def evaluate_js(self, js):
+            pass
+
+    win = FakeWin()
+    fake_webview = types.SimpleNamespace(create_window=lambda title, url, **kw: win)
+    monkeypatch.setitem(sys.modules, "webview", fake_webview)
+    monkeypatch.setattr(hotkey, "_CARD", {"win": None})
+
+    # created once, reused forever
+    first = hotkey._create_card(7789)
+    second = hotkey._create_card(7789)
+    assert first is second is win
+    # Esc/✕ (close_popup) hides instead of destroying
+    hotkey._PopupApi().close_popup()
+    assert win.shown is False
+    # a press reloads (fresh clipboard prefill) and shows the same window
+    win.shown = True
+    hotkey._show_card(7789)
+    assert win.urls == ["http://127.0.0.1:7789/?glass=1"]
+    assert win.shown is True
 
 
 def test_detach_prefers_pythonw(monkeypatch, tmp_path):
