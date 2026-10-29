@@ -51,22 +51,9 @@ gloss 做的是同一件事，而且刻意保留了页边注的三个好品质�
 3. **概念连着概念** — 新卡片提到你已收录的词，自动建链；没收录的先挂起，
    将来 gloss 它时自动回填成双向链接。
 
-```console
-$ gloss RAG
-╭─ 📖 RAG ────────────────────────────────────────────────╮
-│  aka Retrieval-Augmented Generation / 检索增强生成      │
-│                                                         │
-│ 让模型先检索资料再作答的技术。                           │
-│                                                         │
-│ 先从外部知识库检索相关片段，再拼进上下文交给大模型生成   │
-│ 答案，能显著减少幻觉。                                   │
-│                                                         │
-│ #machine-learning #nlp                                  │
-│  🔗 Embedding  (已关联)                                 │
-│  · 向量数据库  (未收录，gloss 它即可建立关联)            │
-╰─────────────────────────────────────────────────────────╯
-首次记录 2026-10-29 · 来源 https://docs.example.com/agents
-```
+<p align="center">
+  <img src="docs/img/gloss-card.svg" alt="gloss 队头阻塞卡片：缓存命中 0 token，QUIC 与 TLS 已自动关联，TCP/HTTP/2 等待收录" width="720">
+</p>
 
 每次查询都会告诉你是 `⚡ 0 tokens` 的缓存命中，还是 `✨ 已收录` 的新卡——
 `gloss stats` 里能看着省下的 token 复利增长。

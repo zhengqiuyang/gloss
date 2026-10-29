@@ -62,22 +62,9 @@ It writes the margin notes for you, and keeps every one of them.
    own, they're linked automatically; unknown names are parked and back-filled
    into a two-way link when you gloss them later.
 
-```console
-$ gloss RAG
-╭─ 📖 RAG ────────────────────────────────────────────────╮
-│  aka Retrieval-Augmented Generation / 检索增强生成      │
-│                                                         │
-│ 让模型先检索资料再作答的技术。                           │
-│                                                         │
-│ 先从外部知识库检索相关片段，再拼进上下文交给大模型生成   │
-│ 答案，能显著减少幻觉。                                   │
-│                                                         │
-│ #machine-learning #nlp                                  │
-│  🔗 Embedding  (已关联)                                 │
-│  · 向量数据库  (未收录，gloss 它即可建立关联)            │
-╰─────────────────────────────────────────────────────────╯
-首次记录 2026-10-29 · 来源 https://docs.example.com/agents
-```
+<p align="center">
+  <img src="docs/img/gloss-card.svg" alt="gloss HOL-blocking card: cache hit, 0 tokens; QUIC and TLS auto-linked; TCP/HTTP/2 waiting to be glossed" width="720">
+</p>
 
 Every lookup tells you whether it was a `⚡ 0 tokens` cache hit or a fresh
 `✨ card` — and `gloss stats` shows the saved tokens compounding.
