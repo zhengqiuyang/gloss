@@ -85,7 +85,7 @@ gloss config set llm.base_url https://api.deepseek.com/v1   # DeepSeek, for exam
 gloss config set llm.model deepseek-chat
 ```
 
-DeepSeek, GLM, Ollama (local and free), SiliconFlow… change two lines to
+DeepSeek, GLM, Ollama (local and free)… anything with an OpenAI-compatible API, two lines to
 switch. Other options (explanation language, detail length, vision model,
 hotkey, port) — see `gloss config show`. Config lives in
 `~/.gloss/config.toml`; the library is `gloss.db` next to it.

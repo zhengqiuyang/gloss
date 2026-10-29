@@ -117,7 +117,7 @@ class GlossLLM:
                     "还没有配置 API key。两种方式任选：\n"
                     "  1. export GLOSS_API_KEY=sk-...\n"
                     "  2. gloss config set llm.api_key sk-...  （注意 config 文件是明文）\n"
-                    "任意 OpenAI 兼容服务都能用（DeepSeek / GLM / Ollama / 硅基流动…）。"
+                    "任意 OpenAI 兼容服务都能用（DeepSeek / GLM / Ollama…）。"
                     "非 OpenAI 服务还要换地址和模型：\n"
                     "  gloss config set llm.base_url https://api.deepseek.com/v1\n"
                     "  gloss config set llm.model deepseek-chat"

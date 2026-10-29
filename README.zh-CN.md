@@ -77,7 +77,7 @@ gloss config set llm.base_url https://api.deepseek.com/v1   # DeepSeek 为例
 gloss config set llm.model deepseek-chat
 ```
 
-DeepSeek、GLM、Ollama（本地、免费）、硅基流动……改两行就能换。其他可调项
+DeepSeek、GLM、Ollama（本地、免费）……只要是 OpenAI 兼容接口，改两行就能换。其他可调项
 （解释语言、详情长度、视觉模型、热键、端口）用 `gloss config show` 查看。
 配置在 `~/.gloss/config.toml`，词库是同目录的 `gloss.db`。
 
