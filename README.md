@@ -86,9 +86,9 @@ for you, and keeps every one of them.
 
 ```bash
 # from source (recommended while pre-release)
-uv tool install git+https://github.com/YOUR_USERNAME/gloss
+uv tool install git+https://github.com/zhengqiuyang/gloss
 # or
-pipx install git+https://github.com/YOUR_USERNAME/gloss
+pipx install git+https://github.com/zhengqiuyang/gloss
 ```
 
 ## Configure

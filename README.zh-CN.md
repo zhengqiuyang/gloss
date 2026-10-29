@@ -71,9 +71,9 @@ gloss 做的是同一件事：替你写页边注，并把每一条都留下来�
 ## 安装
 
 ```bash
-uv tool install git+https://github.com/YOUR_USERNAME/gloss
+uv tool install git+https://github.com/zhengqiuyang/gloss
 # 或
-pipx install git+https://github.com/YOUR_USERNAME/gloss
+pipx install git+https://github.com/zhengqiuyang/gloss
 ```
 
 ## 配置

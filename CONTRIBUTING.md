@@ -7,7 +7,7 @@ what you tried to do.
 ## Development setup
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/gloss
+git clone https://github.com/zhengqiuyang/gloss
 cd gloss
 uv venv && uv pip install -e ".[dev]"    # or: python -m venv .venv && pip install -e ".[dev]"
 .venv/bin/pytest

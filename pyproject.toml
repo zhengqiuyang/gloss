@@ -53,8 +53,8 @@ app = [
 gloss = "gloss.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/YOUR_USERNAME/gloss"
-Issues = "https://github.com/YOUR_USERNAME/gloss/issues"
+Homepage = "https://github.com/zhengqiuyang/gloss"
+Issues = "https://github.com/zhengqiuyang/gloss/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gloss"]
