@@ -23,17 +23,33 @@ three seconds: wait… what did I look up about it?
 So you search again.
 
 That's not a memory problem — it's a tool-shape problem. Search engines and
-chat windows are built for one question at a time: ask, receive, and the
-relationship ends. Old-school study tools solved the keeping part long ago —
-the vocabulary notebook. Look it up once, write it down, glance at it next
-time. Except a notebook has never heard of HNSW, QUIC, or MCP.
+chat windows are built for one question at a time: you ask, they answer, and
+the relationship ends. Ask about HNSW three times, pay three times, and the
+answer evaporates three times — they don't remember HNSW, let alone QUIC from
+last week or "vector database" from the week before. Those three terms are
+relatives, but nothing ever put them on the same page.
+
+Old-school study tools solved the keeping part long ago: the vocabulary
+notebook. Look up, write down, glance at it next time — look, record, review,
+a complete loop. It has one fatal flaw: it has never heard of HNSW, QUIC, or
+MCP. Words missing from its dictionary get silence — and those are exactly
+the words that block today's reading.
 
 **gloss gives the vocabulary notebook an LLM for a heart.** Copy a term, tap
 a key, and a card appears: a one-line definition, a few sentences of plain
 explanation, related concepts. It lives on your own machine — and you will
-never look this word up again. Three months from now, `gloss related RAG`
-shows you a graph: not a knowledge map someone else drew, but one your own
-reading grew.
+never look this word up again.
+
+Daily use is a light habit: hit an unfamiliar term, copy, ⌘G (Mac) or
+Ctrl+G (Windows), the card floats up, click a related concept to take it
+with you, Esc back to reading. `gloss review` flips your week's margin notes
+back in front of you — "what was it I looked up?" is now its job, not yours.
+`gloss stats` shows the saved tokens compounding. `gloss export` writes the
+whole notebook out as Obsidian wikilinks — the data is yours, and always was.
+
+Three months from now, `gloss related RAG` shows you a graph: not a knowledge
+map someone else drew, but one your own reading grew. No term you've ever
+looked up should live out its days inside a chat window.
 
 ## Why "gloss"?
 
