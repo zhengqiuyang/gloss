@@ -14,15 +14,61 @@ from __future__ import annotations
 import ctypes
 import signal
 import threading
-from typing import Callable
+from typing import Callable, Optional
 
 from .models import GlossError
 
-# Carbon bits (kVK_ANSI_G = 0x05, cmdKey|optionKey = 0x0900, 'keyb'/pressed)
-_KC_G = 0x05
-_MOD_CMD_OPT = 0x0900
+# Carbon modifiers
+_MOD_MAP = {
+    "cmd": 0x0100, "command": 0x0100,
+    "alt": 0x0800, "option": 0x0800, "opt": 0x0800,
+    "ctrl": 0x1000, "control": 0x1000,
+    "shift": 0x0200,
+}
+_MOD_SYMBOL = {"cmd": "⌘", "command": "⌘", "alt": "⌥", "option": "⌥",
+               "opt": "⌥", "ctrl": "⌃", "control": "⌃", "shift": "⇧"}
+# Carbon virtual keycodes for a-z / 0-9 (kVK_ANSI_*)
+_VK_MAP = {
+    "a": 0x00, "s": 0x01, "d": 0x02, "f": 0x03, "h": 0x04, "g": 0x05,
+    "z": 0x06, "x": 0x07, "c": 0x08, "v": 0x09, "b": 0x0B, "q": 0x0C,
+    "w": 0x0D, "e": 0x0E, "r": 0x0F, "y": 0x10, "t": 0x11, "1": 0x12,
+    "2": 0x13, "3": 0x14, "4": 0x15, "6": 0x16, "5": 0x17, "=": 0x18,
+    "9": 0x19, "7": 0x1A, "-": 0x1B, "8": 0x1C, "0": 0x1D, "]": 0x1E,
+    "o": 0x1F, "u": 0x20, "[": 0x21, "i": 0x22, "p": 0x23, "l": 0x25,
+    "j": 0x26, "'": 0x27, "k": 0x28, ";": 0x29, "\\": 0x2A, ",": 0x2B,
+    "/": 0x2C, "n": 0x2D, "m": 0x2E,
+}
 _EVENT_CLASS_KEYBOARD = 0x6B657962  # 'keyb'
 _EVENT_HOT_KEY_PRESSED = 10
+
+
+def parse_hotkey(spec: str) -> Optional[tuple]:
+    """'cmd+g' -> (keycode, carbon_modifiers, display) ; None if invalid."""
+    parts = [p.strip().lower() for p in spec.split("+") if p.strip()]
+    if len(parts) < 2:
+        return None
+    key = parts[-1]
+    mods, display = 0, ""
+    for m in parts[:-1]:
+        if m not in _MOD_MAP:
+            return None
+        mods |= _MOD_MAP[m]
+        display += _MOD_SYMBOL[m]
+    if len(key) != 1 or key not in _VK_MAP:
+        return None
+    return _VK_MAP[key], mods, display + key.upper()
+
+
+# Carbon modifier -> NSEvent modifier mask (for menu key-equivalent display)
+_CARBON_TO_NS = {0x0100: 1 << 20, 0x0200: 1 << 17, 0x0800: 1 << 19, 0x1000: 1 << 18}
+
+
+def _carbon_to_ns_mods(carbon_mods: int) -> int:
+    ns = 0
+    for bit, ns_bit in _CARBON_TO_NS.items():
+        if carbon_mods & bit:
+            ns |= ns_bit
+    return ns
 
 
 def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
@@ -40,6 +86,7 @@ def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
             "不装也没关系：gloss serve + 系统快捷键（见 extras/README.md）是等价替代。"
         ) from exc
 
+    from .config import load_config
     from .server import start_server
     from .ui import console
 
@@ -47,8 +94,11 @@ def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
     port = server.server_address[1]
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
+    spec = load_config()["app"]["hotkey"]
+    parsed = parse_hotkey(spec)
+    display = parsed[2] if parsed else "菜单栏"
     console.print(
-        "[green]📖 gloss 常驻已启动[/green]（菜单栏图标 · ⌥⌘G 呼出弹窗 · Ctrl+C 退出）"
+        f"[green]📖 gloss 常驻已启动[/green]（菜单栏图标 · {display} 呼出弹窗 · Ctrl+C 退出）"
     )
     _run_gui(port=port, no_hotkey=no_hotkey, show_on_start=show_on_start)
 
@@ -56,18 +106,38 @@ def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
 def _run_gui(port: int, no_hotkey: bool, show_on_start: bool) -> None:
     import AppKit as A
 
+    from .config import load_config
+
+    spec = load_config()["app"]["hotkey"]
+    parsed = parse_hotkey(spec)
+
     delegate = _build_delegate_class().alloc().init()
     delegate.port = port
+    delegate.hotkey = parsed  # (keycode, carbon_mods, display) or None
     delegate.buildUI()
 
     app = A.NSApplication.sharedApplication()
     app.setActivationPolicy_(A.NSApplicationActivationPolicyAccessory)  # no Dock icon
     app.setDelegate_(delegate)
 
-    if not no_hotkey and not register_hotkey(delegate.togglePanel):
-        from .ui import console
+    from .ui import console
 
-        console.print("[yellow]全局热键 ⌥⌘G 注册失败，仍可用菜单栏图标呼出[/yellow]")
+    if not no_hotkey:
+        if parsed is None:
+            console.print(
+                f"[yellow]热键配置 {spec!r} 无法识别（示例: cmd+g / cmd+alt+g / ctrl+1），"
+                "先用菜单栏图标呼出。可用 gloss config set app.hotkey 修改。[/yellow]"
+            )
+        elif not register_hotkey(delegate.togglePanel, spec):
+            console.print(
+                f"[yellow]全局热键 {parsed[2]} 注册失败（可能被其他应用占用），"
+                "仍可用菜单栏图标呼出[/yellow]"
+            )
+        elif parsed[1] == _MOD_MAP["cmd"] and len(spec.split("+")) == 2:
+            console.print(
+                "[yellow]提示: ⌘+单键 是全局热键，gloss 运行期间会接管其他应用里的同款快捷键"
+                "（如 ⌘G 的“查找下一个”）。想换回来: gloss config set app.hotkey cmd+alt+g[/yellow]"
+            )
 
     if show_on_start:
         delegate.showPanel()
@@ -89,6 +159,7 @@ def _build_delegate_class():
 
     class Delegate(F.NSObject):
         port = 0
+        hotkey = None  # (keycode, carbon_mods, display) set by _run_gui
         panel = None
         webview = None
         status_item = None
@@ -110,9 +181,13 @@ def _build_delegate_class():
                 it.setTarget_(self)
                 menu.addItem_(it)
 
-            # 显示真实生效的全局热键 ⌥⌘G（Carbon 注册的那个），而不是误导性的 ⌘G
-            cmd_opt = A.NSCommandKeyMask | A.NSAlternateKeyMask
-            add("显示弹窗", "mShow:", "g", cmd_opt)
+            # 菜单里显示真实生效的全局热键（Carbon 注册的那个）
+            if self.hotkey:
+                _, carbon_mods, display = self.hotkey
+                add("显示弹窗 " + display, "mShow:",
+                    display[-1].lower(), _carbon_to_ns_mods(carbon_mods))
+            else:
+                add("显示弹窗", "mShow:")
             add("重新载入", "mReload:", "r")
             menu.addItem_(A.NSMenuItem.separatorItem())
             menu.addItem_(
@@ -214,8 +289,12 @@ def _build_delegate_class():
     return Delegate
 
 
-def register_hotkey(callback: Callable[[], None]) -> bool:
-    """Register ⌥⌘G system-wide via Carbon. No accessibility permission needed."""
+def register_hotkey(callback: Callable[[], None], spec: str = "cmd+g") -> bool:
+    """Register a system-wide hotkey via Carbon. No accessibility permission needed."""
+    parsed = parse_hotkey(spec)
+    if parsed is None:
+        return False
+    key_code, modifiers, _display = parsed
     holder: dict = {"cb": None}
 
     try:
@@ -280,8 +359,8 @@ def register_hotkey(callback: Callable[[], None]) -> bool:
 
     hotkey = ctypes.c_void_p()
     status = carbon.RegisterEventHotKey(
-        _KC_G,
-        _MOD_CMD_OPT,
+        key_code,
+        modifiers,
         HotKeyID(0x676C6F73, 1),  # 'glos', id 1
         target,
         0,

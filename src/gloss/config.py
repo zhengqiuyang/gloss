@@ -34,6 +34,9 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
     "serve": {
         "port": 7789,
     },
+    "app": {
+        "hotkey": "cmd+g",
+    },
 }
 
 # Flat dotted paths accepted by `gloss config set`, with value coercers.
@@ -47,6 +50,7 @@ _CONFIG_SCHEMA = {
     "glossary.detail_max_chars": int,
     "glossary.max_known_terms": int,
     "serve.port": int,
+    "app.hotkey": str,
 }
 
 
