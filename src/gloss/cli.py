@@ -109,14 +109,20 @@ def demo(clear: bool) -> None:
         return
     added, skipped = seed_demo()
     if added:
-        click.echo(f"已导入 {added} 张示例卡片" + (f"（跳过 {skipped} 张你已有的）" if skipped else "") + "。试试：\n")
-        click.echo("  gloss ls              # 看看词库长什么样")
+        click.echo(
+            f"已导入 {added} 张示例卡片——这是一位读者两周的阅读痕迹，"
+            "从 RAG 一路长成一张小网（示例数据，token 显示为 0）"
+            + (f"，跳过了 {skipped} 张你已有的" if skipped else "")
+            + "。试试：\n"
+        )
+        click.echo("  gloss ls              # 看看这份词库长什么样")
         click.echo("  gloss RAG             # 打开一张卡片")
         click.echo("  gloss related RAG     # 看概念之间怎么连成网")
         click.echo("  gloss search 向量      # 全文搜索")
-        click.echo("  gloss review --days 30 # 复盘")
+        click.echo("  gloss review --days 30 # 复盘这两周")
         click.echo("  gloss stats           # 统计")
-        click.echo("\n不想要这些示例了: gloss demo --clear")
+        click.echo("\n以后遇到生词，复制后敲 gp 就能拥有自己的词库。")
+        click.echo("不想要这些示例了: gloss demo --clear")
     else:
         click.echo("示例卡片之前已经导入过" + (f"（跳过 {skipped} 张重名）" if skipped else "") + "，直接 gloss ls 看。")
 
