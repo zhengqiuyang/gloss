@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Dict, List, Optional
 
 from . import clipboard, ingest
+from .config import load_config
 from .models import Card, GlossError
 
 DEFAULT_PORT = 7789
@@ -68,19 +69,19 @@ def make_handler():
         def do_GET(self) -> None:
             if self.path != "/":
                 return self._json(404, {"error": "not found"})
-            prefill, hint = "", ""
+            prefill, hint, clip_kind = "", "", "none"
             try:
                 kind, data = clipboard.read_clipboard()
+                clip_kind = kind
                 if kind == "text":
                     prefill = data
-                else:
-                    hint = "剪贴板里是图片，网页版暂不处理图片——用 gloss paste（需配置视觉模型）。"
             except GlossError:
                 pass  # empty clipboard: start with an empty input
             html = (
                 _PAGE
                 .replace("__PREFILL__", json.dumps(prefill, ensure_ascii=False).replace("</", "<\\/"))
                 .replace("__HINT__", json.dumps(hint, ensure_ascii=False).replace("</", "<\\/"))
+                .replace("__CLIP_KIND__", json.dumps(clip_kind))
             )
             body = html.encode("utf-8")
             self.send_response(200)
@@ -90,6 +91,8 @@ def make_handler():
             self.wfile.write(body)
 
         def do_POST(self) -> None:
+            if self.path == "/api/image":
+                return self._image()
             if self.path != "/api/lookup":
                 return self._json(404, {"error": "not found"})
             try:
@@ -112,6 +115,32 @@ def make_handler():
             except Exception as exc:  # never leak a traceback into the popup
                 return self._json(500, {"error": f"内部错误: {exc}"})
             self._json(200, result_to_dict(result))
+
+        def _image(self) -> None:
+            """Digest whatever image is currently in the clipboard."""
+            if not self._vision_configured():
+                from .clipboard import image_supported_hint
+
+                return self._json(400, {"error": image_supported_hint()})
+            try:
+                kind, path = clipboard.read_clipboard()
+            except GlossError as exc:
+                return self._json(400, {"error": str(exc)})
+            if kind != "image":
+                return self._json(400, {"error": "剪贴板里没有图片。先截图（⌘⇧⌃4 存剪贴板）再触发。"})
+            try:
+                result = ingest.ingest_image(path, note="")
+            except GlossError as exc:
+                return self._json(400, {"error": str(exc)})
+            except Exception as exc:
+                return self._json(500, {"error": f"内部错误: {exc}"})
+            self._json(200, result_to_dict(result))
+
+        @staticmethod
+        def _vision_configured() -> bool:
+            cfg = load_config()
+            llm = cfg["llm"]
+            return bool(llm.get("vision_model") or llm.get("model"))
 
     return Handler
 
@@ -272,13 +301,14 @@ _PAGE = """<!doctype html>
     <div class="empty">
       <div class="big">📖</div>
       <div class="slogan">查一次，永久拥有。</div>
-      <div class="tips">复制过的词已自动填入 · <kbd>Esc</kbd> 关窗 · 点击任何关联词继续查</div>
+      <div class="tips">复制后呼出即自动查询 · <kbd>Esc</kbd> 关窗 · 点击任何关联词继续查</div>
     </div>
   </div>
 </div>
 <script>
 const PREFILL = __PREFILL__;
 const HINT = __HINT__;
+const CLIP_KIND = __CLIP_KIND__;
 const q = document.getElementById("q");
 const out = document.getElementById("out");
 const hintEl = document.getElementById("hint");
@@ -383,8 +413,23 @@ async function lookup() {
     render({ error: "请求失败: " + e });
   }
 }
+
+async function lookupImage() {
+  out.textContent = "";
+  out.appendChild(el("div", "spin", "解析剪贴板里的图片…"));
+  try {
+    const r = await fetch("/api/image", { method: "POST" });
+    render(await r.json());
+  } catch (e) {
+    render({ error: "请求失败: " + e });
+  }
+}
 q.addEventListener("keydown", e => { if (e.key === "Enter") lookup(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") window.close(); });
+
+// 热键/打开即意图：剪贴板里有词就直接查，有图就直接解析，不再多按一次回车
+if (CLIP_KIND === "image") lookupImage();
+else if (PREFILL.trim()) lookup();
 </script>
 </body>
 </html>

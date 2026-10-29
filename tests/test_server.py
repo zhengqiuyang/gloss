@@ -23,11 +23,13 @@ def server_url(home, fake_llm):
     srv.server_close()
 
 
-def _request(url, method="GET", payload: Optional[dict] = None):
+def _request(url, method="GET", payload: Optional[dict] = None, path: Optional[str] = None):
     conn = http.client.HTTPConnection(url, timeout=30)
     body = json.dumps(payload).encode() if payload is not None else None
     headers = {"Content-Type": "application/json"} if payload is not None else {}
-    conn.request(method, "/" if payload is None else "/api/lookup", body=body, headers=headers)
+    if path is None:
+        path = "/" if payload is None else "/api/lookup"
+    conn.request(method, path, body=body, headers=headers)
     resp = conn.getresponse()
     data = resp.read()
     ctype = resp.getheader("Content-Type", "")
@@ -112,3 +114,34 @@ def test_unknown_path_is_404(server_url):
     conn.request("GET", "/nope")
     assert conn.getresponse().status == 404
     conn.close()
+
+
+def test_page_contains_auto_trigger_logic(server_url, monkeypatch):
+    from gloss import clipboard
+
+    monkeypatch.setattr(clipboard, "read_clipboard", lambda: ("text", "QUIC"))
+    _, _, data = _request(server_url)
+    html = data.decode("utf-8")
+    assert "/api/image" in html
+    assert "CLIP_KIND" in html
+    assert 'PREFILL.trim()) lookup()' in html  # 打开即自动查询
+
+
+def test_api_image_with_clipboard_image(server_url, fake_llm, monkeypatch):
+    from gloss import clipboard
+
+    monkeypatch.setattr(clipboard, "read_clipboard", lambda: ("image", "/tmp/shot.png"))
+    status, _, data = _request(server_url, "POST", {"text": "ignored"}, path="/api/image")
+    assert status == 200
+    payload = json.loads(data)
+    assert payload["card"]["type"] == "snippet"
+    assert fake_llm.image_calls == ["/tmp/shot.png"]
+
+
+def test_api_image_without_image_is_400(server_url, fake_llm, monkeypatch):
+    from gloss import clipboard
+
+    monkeypatch.setattr(clipboard, "read_clipboard", lambda: ("text", "just a word"))
+    status, _, data = _request(server_url, "POST", {}, path="/api/image")
+    assert status == 400
+    assert "没有图片" in json.loads(data)["error"]
