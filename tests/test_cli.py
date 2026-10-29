@@ -119,6 +119,27 @@ def test_export_json_and_md(runner, home, fake_llm, tmp_path):
     assert (out_dir / "md" / "index.md").exists()
 
 
+def test_show_without_args_gives_friendly_hint(runner, home):
+    make_card("RAG", one_liner="x")
+    result = runner.invoke(cli, ["show"])
+    assert result.exit_code != 0
+    msg = str(result.exception)
+    assert "gloss show <术语>" in msg
+    assert "RAG" in msg  # 最近收录的词出现在提示里
+
+
+def test_related_without_args_gives_friendly_hint(runner, home):
+    result = runner.invoke(cli, ["related"])
+    assert result.exit_code != 0
+    assert "gloss related <术语>" in str(result.exception)
+
+
+def test_search_without_args_gives_friendly_hint(runner, home):
+    result = runner.invoke(cli, ["search"])
+    assert result.exit_code != 0
+    assert "gloss search <关键词>" in str(result.exception)
+
+
 def test_missing_api_key_gives_friendly_error(runner, home, monkeypatch):
     monkeypatch.delenv("GLOSS_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)

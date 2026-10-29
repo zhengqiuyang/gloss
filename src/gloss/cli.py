@@ -136,13 +136,24 @@ def ls(card_type: Optional[str], tag: Optional[str], limit: int) -> None:
     ui.render_list(db.list_cards(card_type=card_type, tag=tag, limit=limit))
 
 
+def _recent_terms(limit: int = 5) -> str:
+    terms = [c.term for c in db.list_cards(limit=limit)]
+    return " · ".join(terms) if terms else "（词库还是空的，试试 gloss demo）"
+
+
 @cli.command()
-@click.argument("name", nargs=-1, required=True)
+@click.argument("name", nargs=-1)
 @click.option("--json", "as_json", is_flag=True, help="输出原始 JSON（供脚本使用）")
 def show(name: Tuple[str, ...], as_json: bool) -> None:
     """只看本地卡片，不触发模型。"""
     import json as jsonlib
 
+    if not name:
+        raise GlossError(
+            f"用法: gloss show <术语>，例如 gloss show RAG\n"
+            f"最近收录: {_recent_terms()}\n"
+            f"浏览全部: gloss ls"
+        )
     card = db.get_card(" ".join(name))
     if card is None:
         raise GlossError("本地没有这张卡片。去掉 show 直接 gloss <词> 可以联网收录。")
@@ -156,17 +167,27 @@ def show(name: Tuple[str, ...], as_json: bool) -> None:
 
 
 @cli.command()
-@click.argument("query", nargs=-1, required=True)
+@click.argument("query", nargs=-1)
 @click.option("--limit", default=20, show_default=True)
 def search(query: Tuple[str, ...], limit: int) -> None:
     """全文搜索词库（FTS5，找不到时回退 LIKE）。"""
+    if not query:
+        raise GlossError(
+            f"用法: gloss search <关键词>，例如 gloss search 向量\n"
+            f"浏览全部: gloss ls"
+        )
     ui.render_search(db.search(" ".join(query), limit=limit), " ".join(query))
 
 
 @cli.command()
-@click.argument("name", nargs=-1, required=True)
+@click.argument("name", nargs=-1)
 def related(name: Tuple[str, ...]) -> None:
     """查看一张卡片关联了哪些概念。"""
+    if not name:
+        raise GlossError(
+            f"用法: gloss related <术语>，例如 gloss related RAG\n"
+            f"最近收录: {_recent_terms()}"
+        )
     card = db.get_card(" ".join(name))
     if card is None:
         raise GlossError("本地没有这张卡片。")
