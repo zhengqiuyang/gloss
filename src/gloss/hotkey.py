@@ -50,6 +50,7 @@ CREATE_NO_WINDOW = 0x08000000
 HOTKEY_ID, QUIT_ID = 1, 2
 FALLBACK_SPEC = "ctrl+g"  # aligns with the macOS default ⌘G
 QUIT_SPEC = "ctrl+alt+shift+g"
+_POPUP_TITLE = "gloss-card"  # distinct from the hidden sentinel, for FindWindow
 _CHROME_PATHS = [
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
@@ -58,21 +59,60 @@ _CHROME_PATHS = [
 _POPUP: dict = {"win": None}
 _NATIVE: Optional[bool] = None
 
+# A dedicated top strip: drag area on the left, visible close button on the
+# right. The searchbar is nearly all input field, so it must not be the drag
+# handle. Also rebinds Escape (the page's own window.close() is ignored by
+# Chromium for non-script-opened windows) and focuses the input.
+_INJECT_CSS = """
+#gloss-native-bar {
+  position: fixed; top: 0; left: 0; right: 0; height: 30px;
+  display: flex; align-items: center; justify-content: space-between;
+  z-index: 999; -webkit-user-select: none; user-select: none;
+}
+#gloss-native-bar .gbar-drag {
+  flex: 1; height: 100%;
+  display: flex; align-items: center; padding-left: 12px;
+}
+#gloss-native-bar .gbar-title { font: 600 11px -apple-system, sans-serif; opacity: .45; }
+#gloss-native-bar .gbar-x {
+  width: 30px; height: 22px; margin-right: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; opacity: .55; border-radius: 6px; cursor: pointer;
+}
+#gloss-native-bar .gbar-x:hover { background: rgba(255,69,58,.15); color: #ff453a; opacity: 1; }
+body.glass .app { padding-top: 36px !important; }
+"""
+
 _INJECT_JS = """
 (function () {
+  var css = document.createElement('style');
+  css.textContent = `__CSS__`;
+  document.head.appendChild(css);
+  if (document.getElementById('gloss-native-bar')) return;
   function bind() {
-    var sb = document.querySelector('.searchbar');
-    if (sb) sb.classList.add('pywebview-drag-region');
+    var bar = document.createElement('div');
+    bar.id = 'gloss-native-bar';
+    bar.innerHTML =
+      '<span class="pywebview-drag-region gbar-drag">' +
+        '<span class="gbar-title">📖 gloss — 拖动这里移动 · Esc 关闭</span>' +
+      '</span>' +
+      '<span class="gbar-x" id="gbar-x">✕</span>';
+    document.body.appendChild(bar);
+    function close() {
+      if (window.pywebview && window.pywebview.api) window.pywebview.api.close_popup();
+      else window.close();
+    }
+    bar.querySelector('#gbar-x').addEventListener('click', close);
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && window.pywebview && window.pywebview.api) {
-        window.pywebview.api.close_popup();
-      }
+      if (e.key === 'Escape') close();
     }, true);
+    var q = document.getElementById('q');
+    if (q) q.focus();
   }
   if (document.readyState === 'complete') bind();
   else window.addEventListener('load', bind);
 })();
-"""
+""".replace("__CSS__", _INJECT_CSS.strip().replace("\n", " "))
 
 
 def parse_hotkey(spec: str) -> Optional[Tuple[int, int, str]]:
@@ -236,7 +276,7 @@ def _show_native_popup(port: int) -> None:
         _POPUP["win"] = None
 
     win = webview.create_window(
-        "gloss",
+        _POPUP_TITLE,
         f"http://127.0.0.1:{port}/?glass=1",
         js_api=_PopupApi(),
         width=560,
@@ -253,11 +293,30 @@ def _show_native_popup(port: int) -> None:
         except Exception:
             pass
 
+    def on_shown() -> None:
+        # A hotkey-triggered window is born while another app owns the
+        # foreground; without this the card never gets keyboard focus and
+        # Esc is dead. The ALT tap is the classic workaround for the
+        # foreground lock when SetForegroundWindow alone is rejected.
+        try:
+            user32 = ctypes.windll.user32
+            hwnd = user32.FindWindowW(None, _POPUP_TITLE)
+            if not hwnd:
+                return
+            user32.SetForegroundWindow(hwnd)
+            if user32.GetForegroundWindow() != hwnd:
+                user32.keybd_event(0x12, 0, 0, 0)  # ALT down
+                user32.SetForegroundWindow(hwnd)
+                user32.keybd_event(0x12, 0, 2, 0)  # ALT up
+        except Exception:
+            pass
+
     def on_closed() -> None:
         if _POPUP.get("win") is win:
             _POPUP["win"] = None
 
     win.events.loaded += on_loaded
+    win.events.shown += on_shown
     win.events.closed += on_closed
 
 
