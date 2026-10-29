@@ -58,6 +58,19 @@ _CHROME_PATHS = [
 
 _POPUP: dict = {"win": None}
 _NATIVE: Optional[bool] = None
+GWLP_HWNDPARENT = -28  # sets the OWNER window; owned windows never get a taskbar button
+
+
+def _plog(message: str) -> None:
+    """Black-box recorder for the popup: GLOSS_HOME/popup.log."""
+    try:
+        from .config import gloss_home
+        from .models import now_iso
+
+        with open(gloss_home() / "popup.log", "a", encoding="utf-8") as f:
+            f.write(f"{now_iso()} {message}\n")
+    except Exception:
+        pass
 
 # A dedicated top strip: drag area on the left, visible close button on the
 # right. The searchbar is nearly all input field, so it must not be the drag
@@ -369,8 +382,18 @@ def _show_native_popup(port: int) -> None:
             form = getattr(win, "native", None)
             if form is not None:
                 form.ShowInTaskbar = False
-        except Exception:
-            pass
+            user32 = ctypes.windll.user32
+            hwnd = form.Handle.ToInt64() if form is not None else user32.FindWindowW(None, _POPUP_TITLE)
+            # the deterministic kill switch: an owned window never gets a
+            # taskbar button, whatever the style race does. the hidden
+            # sentinel is our owner — it lives as long as the process.
+            owner = user32.FindWindowW(None, "gloss")
+            if hwnd and owner:
+                set_owner = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+                set_owner(hwnd, GWLP_HWNDPARENT, owner)
+            _plog(f"before_show hwnd={hwnd} owner={owner} native={form is not None}")
+        except Exception as exc:
+            _plog(f"before_show ERR {exc!r}")
 
     def reveal() -> None:
         if state["revealed"]:
@@ -386,6 +409,10 @@ def _show_native_popup(port: int) -> None:
                         hwnd, GWL_EXSTYLE,
                         user32.GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW,
                     )
+                    owner = user32.FindWindowW(None, "gloss")
+                    if owner:
+                        set_owner = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+                        set_owner(hwnd, GWLP_HWNDPARENT, owner)
                 return hwnd
 
             hwnd = apply_style()
@@ -400,8 +427,32 @@ def _show_native_popup(port: int) -> None:
                 user32.keybd_event(0x12, 0, 0, 0)  # ALT down
                 user32.SetForegroundWindow(hwnd)
                 user32.keybd_event(0x12, 0, 2, 0)  # ALT up
-        except Exception:
-            pass
+            ex = user32.GetWindowLongW(hwnd, -20) if hwnd else 0
+            _plog(
+                f"revealed hwnd={hwnd} visible={bool(user32.IsWindowVisible(hwnd))} "
+                f"exstyle={ex:#x} toolwindow={bool(ex & 0x80)} "
+                f"fg={user32.GetForegroundWindow() == hwnd}"
+            )
+            # watchdog: whatever races with the styles (handle recreation,
+            # WinForms churn), strip a re-appearing taskbar style loss within
+            # 400ms for as long as the card is open
+            def guard():
+                end = time.time() + 60
+                while time.time() < end:
+                    time.sleep(0.4)
+                    try:
+                        h = user32.FindWindowW(None, _POPUP_TITLE)
+                        if not h or not user32.IsWindowVisible(h):
+                            return  # card closed
+                        ex = user32.GetWindowLongW(h, -20)
+                        if not (ex & 0x80):
+                            apply_style()
+                            _plog(f"guard re-applied (exstyle was {ex:#x})")
+                    except Exception:
+                        return
+            threading.Thread(target=guard, daemon=True).start()
+        except Exception as exc:
+            _plog(f"reveal ERR {exc!r}")
 
     def on_loaded() -> None:
         try:
