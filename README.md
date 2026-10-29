@@ -35,6 +35,22 @@ never look this word up again. Three months from now, `gloss related RAG`
 shows you a graph: not a knowledge map someone else drew, but one your own
 reading grew.
 
+## Why "gloss"?
+
+A *gloss* is the note a medieval scribe wrote in the margin of a manuscript
+to explain a difficult word — the word is Greek in origin, *glōssa*, "tongue,
+language". When a strange Latin word appeared, the scribe wrote a
+plain-language note beside it; as the notes piled up, someone collected them
+into a book — which is where *glossary* comes from.
+
+gloss does the same thing, and it deliberately keeps three virtues of the
+margin note: **it never interrupts** — copy, glance, back to reading;
+**it stays beside the original** — it remembers where you met the term (the
+source and the context), not just a bare definition; **it endures** — written
+on your own machine, every note kept.
+
+It writes the margin notes for you, and keeps every one of them.
+
 ## How "once" becomes "forever"
 
 1. **Lookup is caching** — every term is checked against local SQLite first;
@@ -112,13 +128,6 @@ Hotkey, Raycast, Shortcuts and AutoHotkey recipes live in
 | `gloss paste` (clipboard capture: text + screenshots) | **macOS & Windows**; Linux needs adapters (see `src/gloss/clipboard.py`) |
 | `gloss hotkey` (global-hotkey popup + tray) | **Windows only** — frameless WebView2 card; the macOS counterpart is `gloss app` |
 | `gloss app` (menu bar + ⌘G popup) | **macOS only** — pyobjc, Carbon hotkey |
-
-## Why "gloss"?
-
-A *gloss* is the note a scribe writes in the margin of a manuscript to explain
-a difficult word — the word is Greek in origin, *glōssa*, "tongue, language".
-Collect the margins and you have a glossary. gloss does the same thing: it
-writes the margin notes for you, and keeps every one of them.
 
 ## Roadmap
 
