@@ -104,7 +104,7 @@ gloss demo                        # 导入示例词库（无需 API key）
 gloss paste                       # 直接读剪贴板：文字 → 词条/摘要，截图 → 视觉解析
 gloss paste --notify              # 同上，但结果走系统通知（配全局快捷键用）
 gloss serve                       # 本地网页弹窗 + HTTP API（预填剪贴板，可点词跳查）
-gloss hotkey                      # Windows：全局热键弹窗（Ctrl+Alt+G），剪贴板内容直接出卡
+gloss hotkey                      # Windows：全局热键弹窗（Ctrl+G，对齐 macOS ⌘G），剪贴板内容直接出卡
 gloss app                         # 菜单栏应用：⌥⌘G 全局热键弹窗 + 常驻服务
 gloss QUIC                        # 查询/收录一个术语
 gloss RAG -n "读 agent 文档时" -s "https://…"   # 记录语境和来源

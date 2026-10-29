@@ -43,7 +43,7 @@ _MOD_SYMBOL = {
 
 WM_HOTKEY = 0x0312
 CREATE_NO_WINDOW = 0x08000000
-FALLBACK_SPEC = "ctrl+alt+g"
+FALLBACK_SPEC = "ctrl+g"  # aligns with the macOS default ⌘G
 _CHROME_PATHS = [
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
@@ -87,11 +87,11 @@ def run_hotkey() -> None:
         if not user32.RegisterHotKey(None, 1, parsed[0], parsed[1]):
             raise GlossError(
                 f"全局热键注册失败（{FALLBACK_SPEC} 也被占用）。换个组合试试: "
-                f"gloss config set app.hotkey ctrl+alt+shift+g"
+                f"gloss config set app.hotkey ctrl+alt+g"
             )
         console.print(
             f"[yellow]配置的热键 {spec!r} 注册失败（Win+G 被 Xbox Game Bar 占用？），"
-            f"已改用 {FALLBACK_SPEC}[/yellow]"
+            f"已改用 {FALLBACK_SPEC}（对齐 macOS 的 ⌘G）[/yellow]"
         )
     else:
         console.print(

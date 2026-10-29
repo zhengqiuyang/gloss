@@ -120,7 +120,7 @@ gloss demo                        # seed a sample glossary (no API key needed)
 gloss paste                       # gloss whatever is in the clipboard (text or screenshot)
 gloss paste --notify              # same, but the result arrives as a system notification
 gloss serve                       # local web popup + HTTP API, pre-filled from clipboard
-gloss hotkey                      # Windows: global-hotkey popup (Ctrl+Alt+G), card from clipboard
+gloss hotkey                      # Windows: global-hotkey popup (Ctrl+G), card from clipboard
 gloss app                         # menu-bar app: ⌥⌘G popup anywhere + always-on service
 gloss QUIC                        # look up / ingest a term
 gloss RAG -n "读 agent 文档时" -s "https://…"   # record context + source

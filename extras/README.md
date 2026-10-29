@@ -4,7 +4,7 @@
 本页按实现成本从低到高给方案，按需取用。
 
 > 平台备注：`gloss paste` 剪贴板捕获（文字 + 截图）与 **L3 全局热键弹窗**
-> （macOS `gloss app` ⌥⌘G / Windows `gloss hotkey` Ctrl+Alt+G）双平台可用；
+> （macOS `gloss app` ⌥⌘G / Windows `gloss hotkey` Ctrl+G）双平台可用；
 > L1 系统通知目前仅 **macOS**；`gloss serve`（L2）全平台可用。
 
 ## L3 · 菜单栏应用（体验天花板，推荐）
@@ -95,22 +95,23 @@ macOS 有 `gloss app`（⌥⌘G），Windows 的对称能力是 `gloss hotkey`�
 用 Win32 `RegisterHotKey` 注册系统热键（不需要装 AutoHotkey）：
 
 ```powershell
-gloss hotkey              # 前台运行：Ctrl+Alt+G 呼出弹窗
+gloss hotkey              # 前台运行：Ctrl+G 呼出弹窗（对齐 macOS 的 ⌘G）
 gloss hotkey --startup    # 写入开机自启（登录后隐藏常驻）
 gloss hotkey --no-startup # 移除开机自启
 ```
 
 按下热键后：自动确保 `gloss serve` 在跑（没跑就静默拉起），弹出无边框
 窗口，剪贴板里的文字或 `Win+Shift+S` 截图**立即出卡**，`Esc` 关窗回阅读。
-与 macOS 共用同一个配置键，想换组合：
+想换组合（与 macOS 共用同一个配置键）：
 
 ```bash
-gloss config set app.hotkey ctrl+alt+shift+g
+gloss config set app.hotkey ctrl+alt+g
 ```
 
 > 注意 `app.hotkey` 里的 `cmd`（macOS 的 ⌘）在 Windows 上读作 Win 键，
-> 而 `Win+G` 被 Xbox Game Bar 占用——Windows 用户请用 ctrl/alt/shift 组合；
-> 注册失败时 `gloss hotkey` 会自动回退到 `Ctrl+Alt+G` 并提示。
+> 而 `Win+G` 被 Xbox Game Bar 占用——配置保持默认 `cmd+g` 时，注册失败会
+> 自动回退到 `Ctrl+G`（对齐 ⌘G）并提示；若 Ctrl+G 也被其他软件占用，
+> 换一个组合即可。
 
 ### 无边框弹窗（Chrome --app 的 Windows 版，热键方案的手动版）
 
