@@ -387,6 +387,13 @@ def demo(clear: bool) -> None:
         click.echo("  gloss review --days 30 # 复盘这两周")
         click.echo("  gloss stats           # 统计")
         click.echo("\n以后遇到生词，复制后敲 gp 就能拥有自己的词库。")
+        click.echo(
+            "想收录真实的词条？配一个 OpenAI 兼容服务的 API key 即可"
+            "（DeepSeek / GLM / Ollama…，README「配置」一节有示例）：\n"
+            "  gloss config set llm.api_key sk-...\n"
+            "  gloss config set llm.base_url https://api.deepseek.com/v1\n"
+            "  gloss config set llm.model deepseek-chat"
+        )
         click.echo("不想要这些示例了: gloss demo --clear")
     else:
         click.echo("示例卡片之前已经导入过" + (f"（跳过 {skipped} 张重名）" if skipped else "") + "，直接 gloss ls 看。")

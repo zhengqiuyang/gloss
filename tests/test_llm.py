@@ -114,3 +114,4 @@ def test_missing_key_error_is_friendly_and_unwrapped(home):
     message = str(exc.value)
     assert "还没有配置 API key" in message
     assert "调用模型失败" not in message
+    assert "base_url" in message  # 非 OpenAI 用户还需要换地址和模型
