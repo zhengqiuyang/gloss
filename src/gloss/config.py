@@ -31,6 +31,9 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "detail_max_chars": 160,
         "max_known_terms": 200,
     },
+    "serve": {
+        "port": 7789,
+    },
 }
 
 # Flat dotted paths accepted by `gloss config set`, with value coercers.
@@ -43,6 +46,7 @@ _CONFIG_SCHEMA = {
     "glossary.language": str,
     "glossary.detail_max_chars": int,
     "glossary.max_known_terms": int,
+    "serve.port": int,
 }
 
 

@@ -55,21 +55,51 @@ def cli() -> None:
     """
 
 
+def _present(result: dict) -> None:
+    """Render an ingest result in the terminal."""
+    card = result["card"]
+    if card.type == "snippet":
+        ui.render_digest(card, result.get("key_terms", []))
+    else:
+        ui.render_card(
+            card,
+            cache_hit=result["cache_hit"],
+            linked=result["linked"],
+            pending=result["pending"],
+            backfilled=result["backfilled"],
+        )
+
+
+def _present_notified(result: dict) -> None:
+    """L1 mode: macOS notification instead of a terminal panel."""
+    from . import notify as notify_mod
+
+    card = result["card"]
+    if result["cache_hit"]:
+        body = f"已在词库 · {card.one_liner}"
+    elif card.type == "snippet":
+        body = f"已收藏 · {card.one_liner}"
+    else:
+        body = f"已收录 · {card.one_liner}"
+    notify_mod.send(f"gloss · {card.term}", body)
+    ui.console.print(f"[dim]✓ 已通知: {card.term}[/dim]")
+
+
 @cli.command()
-@click.argument("term", nargs=-1, required=True)
+@click.argument("term", nargs=-1)
 @click.option("--refresh", is_flag=True, help="忽略缓存，重新生成这张卡片")
 @click.option("-n", "--note", default="", help="记录遇到的语境，如“在读 xx 文档时”")
 @click.option("-s", "--source", default="", help="来源，如 URL 或书名")
 def lookup(term: Tuple[str, ...], refresh: bool, note: str, source: str) -> None:
     """查询一个术语；本地没有就调用模型生成卡片并收录。"""
-    ingest.lookup_or_ingest(" ".join(term), note=note, source=source, refresh=refresh)
+    _present(ingest.lookup_or_ingest(" ".join(term), note=note, source=source, refresh=refresh))
 
 
 @cli.command(hidden=True)
 @click.argument("text", nargs=-1)
 def pipe(text: Tuple[str, ...]) -> None:
     content = " ".join(text) or _read_stdin()
-    ingest.ingest_piped(content)
+    _present(ingest.ingest_piped(content))
 
 
 @cli.command("img")
@@ -77,11 +107,13 @@ def pipe(text: Tuple[str, ...]) -> None:
 @click.option("-n", "--note", default="", help="补充说明，如想重点了解图中哪部分")
 def img(image: str, note: str) -> None:
     """解析一张图片（截图/图表），生成摘要卡片。"""
-    ingest.ingest_image(image, note=note)
+    result = ingest.ingest_image(image, note=note)
+    ui.render_digest(result["card"], result["key_terms"])
 
 
 @cli.command()
-def paste() -> None:
+@click.option("--notify", is_flag=True, help="结果走系统通知而不是终端面板（配热键用）")
+def paste(notify: bool) -> None:
     """直接读剪贴板：文字 → 词条/摘要，截图 → 视觉解析（需配置视觉模型）。
 
     配合 alias 使用最顺手：alias gp='gloss paste'
@@ -92,9 +124,43 @@ def paste() -> None:
     if kind == "image":
         if not load_config()["llm"].get("vision_model"):
             ui.console.print(f"[yellow]提示: {image_supported_hint()}[/yellow]")
-        ingest.ingest_image(data, note="")
+        result = ingest.ingest_image(data, note="")
+        if notify:
+            _present_notified(result)
+        else:
+            ui.render_digest(result["card"], result["key_terms"])
     else:
-        ingest.ingest_piped(data)
+        result = ingest.ingest_piped(data)
+        if notify:
+            _present_notified(result)
+        else:
+            _present(result)
+
+
+@cli.command()
+@click.option("--port", type=int, default=None, help="默认取配置 serve.port（7789）")
+@click.option("--no-browser", is_flag=True, help="启动后不自动打开浏览器")
+def serve(port: Optional[int], no_browser: bool) -> None:
+    """启动本地 Web 弹窗 + HTTP API（只监听 127.0.0.1）。"""
+    import webbrowser
+
+    from .server import start_server
+
+    port = port or load_config()["serve"]["port"]
+    try:
+        srv = start_server(port)
+    except OSError as exc:
+        raise GlossError(f"端口 {port} 被占用（{exc}）。换个端口试试: gloss serve --port 7790")
+    ui.console.print(f"[green]gloss 网页版已启动: http://127.0.0.1:{port}[/green]（Ctrl+C 退出）")
+    ui.console.print("做成弹窗/快捷键的配方见 extras/README.md")
+    if not no_browser:
+        webbrowser.open(f"http://127.0.0.1:{port}")
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        ui.console.print("\n再见。")
+    finally:
+        srv.server_close()
 
 
 @cli.command()

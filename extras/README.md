@@ -1,9 +1,9 @@
-# 零打字方案：把 gloss 接到"复制"这个动作上
+# 零打字方案：从"敲命令"到"热键弹窗"
 
-日常的最佳体验不是敲 `gloss <词>`，而是：**在任何应用里选中/复制 → 一个动作出卡片**。
-按你手头的工具选一种：
+日常的最佳体验不是敲 `gloss <词>`，而是：**复制 → 一个动作出卡片 → 继续阅读**。
+本页按实现成本从低到高给四档方案，按需取用。
 
-## 0. 先把命令打到最短（必做）
+## L0 · 命令打到最短（必做，1 分钟）
 
 ```bash
 # 加进 ~/.zshrc
@@ -11,38 +11,68 @@ alias g='gloss'
 alias gp='gloss paste'
 ```
 
-之后就是：复制任何东西 → 终端敲 `gp` ⏎。文字变词条/摘要卡片，截图直接进视觉解析。
+## L1 · 通知模式（不打断阅读，推荐日常用）
 
-## 1. Raycast（装了 Raycast 的话，推荐）
+`gloss paste --notify`：收录后不走终端面板，改发一条 **macOS 系统通知**
+（标题是词，正文是一句话定义，卡片照常入库）：
 
-把 `extras/raycast/gloss-paste.sh` 拷到 Raycast 的 Script Commands 目录
-（Raycast 设置 → Extensions → Script Command → Open Directory），
-然后在 Raycast 里给它设一个 Hotkey（比如 ⌥G）。
+```bash
+gloss paste --notify
+# 建议 alias：alias gn='gloss paste --notify'
+```
 
-体验：任何地方 ⌘C → 按 ⌥G → 卡片内容内联弹出。
+配任何热键方案（见下），体验就是：⌘C → 热键 → 眼角扫一眼通知 → 继续读。
+想看详情再 `gloss <词>`。
 
-## 2. macOS 快捷指令（不装任何东西）
+## L2 · 本地网页弹窗（卡片最完整，还能点词跳查）
 
-1. 打开「快捷指令」App → 新建快捷指令
-2. 添加动作「运行 Shell 脚本」，Shell 选 zsh，脚本内容：
-   ```bash
-   $HOME/.local/bin/gloss paste
-   ```
-   传入方式选「作为自变量」改成「不传入」都可以
-3. 再加一个动作「显示结果」
-4. 快捷指令详情 → 「添加键盘快捷键」，比如 ⌥⌘G
+```bash
+gloss serve                # 启动后自动打开 http://127.0.0.1:7789
+```
 
-体验：任何地方 ⌘C → 按 ⌥⌘G → 系统弹窗显示卡片。
+页面会**自动预填剪贴板内容**（可改可删，想查别的词直接改），回车出卡片；
+卡片里的关联词和"建议收录"都是可点击的，点一下就地继续查。`Esc` 关窗。
 
-## 3. 想要"选中即查"的面板应用？
+只监听 127.0.0.1，不出本机。端口可在配置里改：`gloss config set serve.port 7790`。
 
-这是 gloss roadmap 里的 macOS hotkey panel（选中文字按快捷键、原生小窗显示卡片）。
-在它做出来之前，方案 1/2 已经能覆盖 90% 的场景——区别只是结果显示在
-Raycast/通知弹窗里，而不是一个专门的输入框。
+## 把它挂到全局快捷键（三选一）
+
+### 1. macOS 快捷指令（零安装）
+
+1. 「快捷指令」App → 新建 → 添加「运行 Shell 脚本」（Shell 选 zsh）：
+   - 通知版：`$HOME/.local/bin/gloss paste --notify`
+   - 弹窗版：`open -a "Google Chrome" --args --app=http://127.0.0.1:7789`，
+     前提是先在终端跑着 `gloss serve`
+2. 快捷指令详情 → 「添加键盘快捷键」（如 ⌥⌘G）
+
+### 2. Raycast
+
+- `extras/raycast/gloss-paste.sh` 已备好（面板内显示结果），拷进
+  Raycast 设置 → Extensions → Script Commands 目录，设 Hotkey；
+- 通知版把脚本里的 `gloss paste` 改成 `gloss paste --notify` 即可。
+
+### 3. iTerm2 Hotkey Window（终端党）
+
+iTerm2 → Settings → Keys → Hotkey → 勾选 "Show/hide all windows with a
+system-wide hotkey"。设一个热键（如 ⌥Space）呼出一个悬浮半透明终端，
+里面 `gp` 或 `gn` 即可，热键再按一下收起。tmux 用户等价物：
+`tmux display-popup -E gloss paste`。
+
+## Chrome --app 无边框弹窗（L2 的正确打开方式）
+
+```bash
+gloss serve --no-browser &
+open -a "Google Chrome" --args --app=http://127.0.0.1:7789 --window-size=640,720
+```
+
+没有地址栏、没有标签页，观感接近原生小窗。可以把这两行存成一个 shell
+脚本再绑快捷键。
 
 ## 注意
 
 - **不要**做"监控剪贴板自动收录"：你会复制密码、地址、临时文字，全部自动
-  打给 LLM 又贵又不安全。显式触发（快捷键/命令）才是正确姿势。
+  打给 LLM 又贵又不安全。显式触发才是正确姿势。
 - 截图解析需要配置 `llm.vision_model`（DeepSeek 不支持视觉；可用智谱
   GLM-4V、OpenAI gpt-4o-mini、本地 qwen2.5-vl 等）。文字部分不受影响。
+- `gloss serve` 只绑定 127.0.0.1，同机任意程序都能调用它的 API（无鉴权），
+  这是本地单用户工具的合理默认；不要手动改成 0.0.0.0 暴露到局域网。

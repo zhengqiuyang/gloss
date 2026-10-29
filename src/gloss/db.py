@@ -79,7 +79,10 @@ def connect() -> sqlite3.Connection:
 
     path = db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    _conn = sqlite3.connect(path)
+    # check_same_thread=False: `gloss serve` handles requests in the server
+    # thread while tests/CLI touch the same connection from other threads.
+    # CPython's sqlite3 is built in serialized mode, so this is safe here.
+    _conn = sqlite3.connect(path, check_same_thread=False)
     _conn.row_factory = sqlite3.Row
     _conn.execute("PRAGMA foreign_keys = ON")
     _conn.executescript(_SCHEMA)

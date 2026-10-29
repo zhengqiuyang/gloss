@@ -99,6 +99,8 @@ database is `~/.gloss/gloss.db`). Override the data directory with `GLOSS_HOME`.
 ```bash
 gloss demo                        # seed a sample glossary (no API key needed)
 gloss paste                       # gloss whatever is in the clipboard (text or screenshot)
+gloss paste --notify              # same, but the result arrives as a system notification
+gloss serve                       # local web popup + HTTP API, pre-filled from clipboard
 gloss QUIC                        # look up / ingest a term
 gloss RAG -n "读 agent 文档时" -s "https://…"   # record context + source
 gloss RAG --refresh               # re-ask the model, keep history
@@ -137,11 +139,12 @@ configure. Nothing is sent anywhere else, and no telemetry exists.
 
 ## Roadmap
 
+- [x] Zero-typing capture: `gloss paste` + global hotkey recipes ([extras/README.md](extras/README.md))
+- [x] Local web popup + HTTP API (`gloss serve` — the base for every future surface)
 - [ ] Semantic search with local embeddings (find cards by meaning, not keywords)
 - [ ] Spaced-repetition review mode (`gloss quiz`)
-- [ ] Global hotkey panel (macOS) and browser-extension capture
 - [ ] MCP server so editors/agents can query your glossary
-- [ ] WeChat/Telegram bot entry point
+- [ ] Native hotkey panel, WeChat/Telegram bot (built on `gloss serve`'s API)
 
 ## Contributing
 

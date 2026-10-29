@@ -1,15 +1,22 @@
-"""The lookup-or-ingest flow: local cache first, LLM only on a miss."""
+"""The lookup-or-ingest flow: local cache first, LLM only on a miss.
+
+These functions are UI-free: they return result dicts so the CLI, the local
+web server (and future entry points) can present however they like.
+Result shapes:
+  term:     {"card": Card, "cache_hit": bool, "linked": [Card],
+             "pending": [str], "backfilled": [Card]}
+  snippet:  {"card": Card, "key_terms": [str], "cache_hit": False}
+"""
 
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from . import db
 from . import llm as llm_mod
 from .config import load_config
 from .models import Card, GlossError, TYPE_SNIPPET, TYPE_TERM, norm_term, now_iso
-from . import ui
 
 # A "term" is short, single-line input; anything longer is a snippet to digest.
 TERM_MAX_CHARS = 80
@@ -25,7 +32,7 @@ def lookup_or_ingest(
     note: str = "",
     source: str = "",
     refresh: bool = False,
-) -> None:
+) -> Dict[str, Any]:
     term = " ".join(term.split())
     if not term:
         raise GlossError("请提供一个术语")
@@ -33,8 +40,7 @@ def lookup_or_ingest(
     if existing and not refresh:
         db.increment_hit(existing.id)
         existing.hit_count += 1  # keep the in-memory card in sync for display
-        ui.render_card(existing, cache_hit=True)
-        return
+        return {"card": existing, "cache_hit": True, "linked": [], "pending": [], "backfilled": []}
 
     known = _known_terms()
     data, tokens = llm_mod.get_client().explain_term(term, known, context=note, source=source)
@@ -66,7 +72,7 @@ def lookup_or_ingest(
 
     linked, pending = db.resolve_related(card)
     backfilled = db.backfill_links(card.id, card.norm) if card.id else []
-    ui.render_card(card, cache_hit=False, linked=linked, pending=pending, backfilled=backfilled)
+    return {"card": card, "cache_hit": False, "linked": linked, "pending": pending, "backfilled": backfilled}
 
 
 def _card_from_llm(
@@ -101,14 +107,13 @@ def _as_list(value: Any) -> List[str]:
     return [str(v).strip() for v in value if str(v).strip()]
 
 
-def ingest_piped(text: str) -> None:
-    """Route piped stdin: short single line → term lookup, longer → snippet digest."""
+def ingest_piped(text: str) -> Dict[str, Any]:
+    """Route pasted text: short single line → term lookup, longer → snippet digest."""
     text = text.strip()
     if not text:
         raise GlossError("没有从管道读到内容")
     if len(text) <= TERM_MAX_CHARS and "\n" not in text:
-        lookup_or_ingest(text)
-        return
+        return lookup_or_ingest(text)
     known = _known_terms()
     data, tokens = llm_mod.get_client().digest_text(text, known)
     title = str(data.get("title") or "").strip() or text[:40]
@@ -123,11 +128,10 @@ def ingest_piped(text: str) -> None:
         tokens_used=tokens,
     )
     db.insert_card(card)
-    key_terms = _as_list(data.get("key_terms"))
-    ui.render_digest(card, key_terms)
+    return {"card": card, "key_terms": _as_list(data.get("key_terms")), "cache_hit": False}
 
 
-def ingest_image(image_path: str, note: str = "") -> None:
+def ingest_image(image_path: str, note: str = "") -> Dict[str, Any]:
     known = _known_terms()
     data, tokens = llm_mod.get_client().analyze_image(image_path, note, known)
     title = str(data.get("title") or "").strip() or "image snippet"
@@ -143,7 +147,7 @@ def ingest_image(image_path: str, note: str = "") -> None:
         tokens_used=tokens,
     )
     db.insert_card(card)
-    ui.render_digest(card, _as_list(data.get("key_terms")))
+    return {"card": card, "key_terms": _as_list(data.get("key_terms")), "cache_hit": False}
 
 
 def _unique_title(title: str) -> str:
