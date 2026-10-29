@@ -345,6 +345,8 @@ def _show_native_popup(port: int) -> None:
             pass
         _POPUP["win"] = None
 
+    # created hidden: the TOOLWINDOW style is applied while invisible, so the
+    # taskbar never creates a button for the card in the first place
     win = webview.create_window(
         _POPUP_TITLE,
         f"http://127.0.0.1:{port}/?glass=1",
@@ -354,33 +356,28 @@ def _show_native_popup(port: int) -> None:
         frameless=True,
         on_top=True,
         easy_drag=False,
+        hidden=True,
     )
     _POPUP["win"] = win
+    state = {"revealed": False}
 
-    def on_loaded() -> None:
-        try:
-            win.evaluate_js(_INJECT_JS)
-        except Exception:
-            pass
-
-    def on_shown() -> None:
-        # A hotkey-triggered window is born while another app owns the
-        # foreground; without this the card never gets keyboard focus and
-        # Esc is dead. The ALT tap is the classic workaround for the
-        # foreground lock when SetForegroundWindow alone is rejected.
+    def reveal() -> None:
+        if state["revealed"]:
+            return
         try:
             user32 = ctypes.windll.user32
             hwnd = user32.FindWindowW(None, _POPUP_TITLE)
             if not hwnd:
                 return
-            # a frameless window still gets a taskbar button by default;
-            # WS_EX_TOOLWINDOW removes it (and the alt-tab entry)
             GWL_EXSTYLE, WS_EX_TOOLWINDOW = -20, 0x00000080
-            user32.ShowWindow(hwnd, 0)
             user32.SetWindowLongW(
                 hwnd, GWL_EXSTYLE, user32.GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW
             )
-            user32.ShowWindow(hwnd, 5)
+            win.show()
+            state["revealed"] = True
+            # a hotkey-triggered window is born while another app owns the
+            # foreground; without this the card never gets keyboard focus and
+            # Esc is dead. the ALT tap defeats the foreground lock if needed.
             user32.SetForegroundWindow(hwnd)
             if user32.GetForegroundWindow() != hwnd:
                 user32.keybd_event(0x12, 0, 0, 0)  # ALT down
@@ -389,13 +386,21 @@ def _show_native_popup(port: int) -> None:
         except Exception:
             pass
 
+    def on_loaded() -> None:
+        try:
+            win.evaluate_js(_INJECT_JS)
+        except Exception:
+            pass
+        reveal()
+
     def on_closed() -> None:
         if _POPUP.get("win") is win:
             _POPUP["win"] = None
 
     win.events.loaded += on_loaded
-    win.events.shown += on_shown
     win.events.closed += on_closed
+    # fallback in case `loaded` is late or missed while hidden
+    threading.Timer(1.5, lambda: threading.Thread(target=reveal, daemon=True).start()).start()
 
 
 def _open_browser_popup(port: int) -> None:
