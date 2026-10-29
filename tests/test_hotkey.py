@@ -90,7 +90,7 @@ def test_detach_prefers_pythonw(monkeypatch, tmp_path):
     monkeypatch.setattr(hotkey.os, "environ", {"SystemRoot": str(tmp_path)})
     hotkey.detach()
     assert spawned[0][0].endswith("pythonw.exe")
-    assert spawned[0][1][1:] == ["-m", "gloss", "hotkey"]
+    assert spawned[0][1:] == ["-m", "gloss", "hotkey"]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="guard only observable off-Windows")
