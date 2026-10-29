@@ -361,20 +361,37 @@ def _show_native_popup(port: int) -> None:
     _POPUP["win"] = win
     state = {"revealed": False}
 
+    # runs on the GUI thread before every Show() (including pywebview's
+    # Opacity dance for hidden windows): the WinForms-level opt-out governs
+    # all handle (re)creations, so the taskbar never gets a button
+    def on_before_show() -> None:
+        try:
+            form = getattr(win, "native", None)
+            if form is not None:
+                form.ShowInTaskbar = False
+        except Exception:
+            pass
+
     def reveal() -> None:
         if state["revealed"]:
             return
         try:
             user32 = ctypes.windll.user32
-            hwnd = user32.FindWindowW(None, _POPUP_TITLE)
-            if not hwnd:
-                return
-            GWL_EXSTYLE, WS_EX_TOOLWINDOW = -20, 0x00000080
-            user32.SetWindowLongW(
-                hwnd, GWL_EXSTYLE, user32.GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW
-            )
-            win.show()
+
+            def apply_style():
+                hwnd = user32.FindWindowW(None, _POPUP_TITLE)
+                if hwnd:
+                    GWL_EXSTYLE, WS_EX_TOOLWINDOW = -20, 0x00000080
+                    user32.SetWindowLongW(
+                        hwnd, GWL_EXSTYLE,
+                        user32.GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW,
+                    )
+                return hwnd
+
+            hwnd = apply_style()
+            win.show()  # thread-safe (marshals to the GUI thread internally)
             state["revealed"] = True
+            hwnd = apply_style()  # re-apply in case showing recreated the handle
             # a hotkey-triggered window is born while another app owns the
             # foreground; without this the card never gets keyboard focus and
             # Esc is dead. the ALT tap defeats the foreground lock if needed.
@@ -397,6 +414,7 @@ def _show_native_popup(port: int) -> None:
         if _POPUP.get("win") is win:
             _POPUP["win"] = None
 
+    win.events.before_show += on_before_show
     win.events.loaded += on_loaded
     win.events.closed += on_closed
     # fallback in case `loaded` is late or missed while hidden
