@@ -58,8 +58,9 @@ for you, and keeps every one of them.
 | Layer | Where it runs |
 |---|---|
 | Core CLI — lookup, glossary, edit/rm, translate, review, stats, export, `gloss serve`, `gloss demo` | **Cross-platform** (any Python 3.9+; runtime deps only click/rich/openai) |
-| `gloss paste` (clipboard capture), `gloss app` (menu bar + ⌘G popup) | **macOS only** — pbpaste/osascript pasteboard, pyobjc, Carbon hotkey |
-| Windows / Linux | Core CLI and `gloss serve` work today; clipboard capture and the native panel need adapters (contributions welcome — see `src/gloss/clipboard.py`) |
+| `gloss paste` (clipboard capture: text + screenshots) | **macOS & Windows** — pbpaste/pasteboard and Win32 clipboard + PowerShell; Linux needs adapters (see `src/gloss/clipboard.py`) |
+| `gloss app` (menu bar + ⌘G popup) | **macOS only** — pyobjc, Carbon hotkey |
+| Linux | Core CLI and `gloss serve` work today; clipboard capture and the native panel need adapters (contributions welcome — see `src/gloss/clipboard.py`) |
 
 ## Features
 

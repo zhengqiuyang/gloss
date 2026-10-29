@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from gloss import db
@@ -58,3 +60,41 @@ def test_paste_image_without_vision_model_prints_hint(runner, home, fake_llm, mo
     result = runner.invoke(cli, ["paste"])
     # vision_model is unset by default; the hint should show but ingest still runs
     assert "视觉模型" in result.output
+
+
+# ---------------------------------------------------------------------------
+# platform dispatch in read_clipboard (backends monkeypatched, runs everywhere)
+# ---------------------------------------------------------------------------
+
+def test_read_clipboard_text_wins_over_image(monkeypatch):
+    from gloss import clipboard
+
+    monkeypatch.setattr(clipboard, "_clipboard_text", lambda: "  QUIC  ")
+    monkeypatch.setattr(clipboard, "_clipboard_png", lambda: "/tmp/x.png")
+    assert clipboard.read_clipboard() == ("text", "QUIC")
+
+
+def test_read_clipboard_falls_back_to_image(monkeypatch):
+    from gloss import clipboard
+
+    monkeypatch.setattr(clipboard, "_clipboard_text", lambda: "   ")
+    monkeypatch.setattr(clipboard, "_clipboard_png", lambda: "/tmp/x.png")
+    assert clipboard.read_clipboard() == ("image", "/tmp/x.png")
+
+
+def test_read_clipboard_empty_raises_with_platform_note(monkeypatch):
+    from gloss import clipboard
+    from gloss.models import GlossError
+
+    monkeypatch.setattr(clipboard, "_clipboard_text", lambda: None)
+    monkeypatch.setattr(clipboard, "_clipboard_png", lambda: None)
+    with pytest.raises(GlossError):
+        clipboard.read_clipboard()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 clipboard")
+def test_win32_text_smoke():
+    from gloss.clipboard import _win32_text
+
+    value = _win32_text()
+    assert value is None or isinstance(value, str)

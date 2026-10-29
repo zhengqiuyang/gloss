@@ -47,10 +47,12 @@ gloss 做的是同一件事：替你写页边注，并把每一条都留下来�
 | 层 | 可运行范围 |
 |---|---|
 | 核心 CLI——查询/词库/edit/rm/翻译/review/stats/export/`gloss serve`/`gloss demo` | **全平台**（Python 3.9+，运行时依赖仅 click/rich/openai） |
-| `gloss paste`（剪贴板捕获）、`gloss app`（菜单栏 + ⌘G 弹窗） | **仅 macOS**——依赖 pbpaste/osascript 剪贴板、pyobjc、Carbon 热键 |
-| Windows / Linux | 核心 CLI 与 `gloss serve` 现已可用；剪贴板捕获与原生浮窗需要适配层（欢迎贡献，见 `src/gloss/clipboard.py`） |
+| `gloss paste`（剪贴板捕获：文字 + 截图） | **macOS & Windows**——pbpaste/剪贴板 与 Win32 剪贴板 + PowerShell；Linux 需适配层（见 `src/gloss/clipboard.py`） |
+| `gloss app`（菜单栏 + ⌘G 弹窗） | **仅 macOS**——依赖 pyobjc、Carbon 热键 |
+| Linux | 核心 CLI 与 `gloss serve` 现已可用；剪贴板捕获与原生浮窗需要适配层（欢迎贡献，见 `src/gloss/clipboard.py`） |
 
-> 本项目当前主力开发与交互体验（⌘G 热键弹窗、菜单栏应用、剪贴板/截图捕获）均在 **macOS** 上完成与验证。
+> 交互体验（⌘G 热键弹窗、菜单栏应用、剪贴板/截图捕获）在 **macOS** 上开发与验证；
+> Windows 已支持剪贴板/截图捕获（Win+Shift+S → `gloss paste`），热键配方见 `extras/README.md`。
 
 ## 功能
 

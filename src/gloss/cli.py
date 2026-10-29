@@ -81,8 +81,13 @@ def _present_notified(result: dict) -> None:
         body = f"已收藏 · {card.one_liner}"
     else:
         body = f"已收录 · {card.one_liner}"
-    notify_mod.send(f"gloss · {card.term}", body)
-    ui.console.print(f"[dim]✓ 已通知: {card.term}[/dim]")
+    notify_ok = notify_mod.send(f"gloss · {card.term}", body)
+    if notify_ok:
+        ui.console.print(f"[dim]✓ 已通知: {card.term}[/dim]")
+    else:
+        ui.console.print(
+            f"[yellow]此平台暂不支持系统通知（目前仅 macOS），卡片已入词库: {card.term}[/yellow]"
+        )
 
 
 @cli.command()

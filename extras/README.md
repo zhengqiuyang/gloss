@@ -3,8 +3,9 @@
 日常的最佳体验不是敲 `gloss <词>`，而是：**复制 → 一个动作出卡片 → 继续阅读**。
 本页按实现成本从低到高给方案，按需取用。
 
-> 平台备注：L1 通知 / L3 菜单栏应用 / 剪贴板捕获均为 **macOS** 方案（osascript/Carbon）；
-> `gloss serve`（L2）全平台可用。Windows/Linux 用户先用核心 CLI + serve。
+> 平台备注：`gloss paste` 剪贴板捕获（文字 + 截图）支持 **macOS 和 Windows**；
+> L1 系统通知 / L3 菜单栏应用目前仍为 **macOS**（osascript/Carbon）；
+> `gloss serve`（L2）全平台可用。Windows 热键配方见下方「Windows 方案」。
 
 ## L3 · 菜单栏应用（体验天花板，推荐）
 
@@ -72,6 +73,34 @@ iTerm2 → Settings → Keys → Hotkey → 勾选 "Show/hide all windows with a
 system-wide hotkey"。设一个热键（如 ⌥Space）呼出一个悬浮半透明终端，
 里面 `gp` 或 `gn` 即可，热键再按一下收起。tmux 用户等价物：
 `tmux display-popup -E gloss paste`。
+
+## Windows 方案
+
+剪贴板捕获在 Windows 上开箱即用（Win32 剪贴板读文字，截图走 PowerShell）：
+
+1. `Win+Shift+S` 截图（进剪贴板）或照常 `Ctrl+C` 复制文字；
+2. 终端里 `gloss paste`（建议在 PowerShell profile 里加 `Set-Alias gp gloss paste`）。
+
+### AutoHotkey 全局热键（推荐）
+
+装 [AutoHotkey v2](https://www.autohotkey.com/)，存一个 `gloss.ahk` 双击运行
+（或放 shell:startup 开机自启）：
+
+```ahk
+; gloss：Ctrl+Alt+G → 剪贴板收录（通知版），Ctrl+Alt+W → 网页弹窗
+#Requires AutoHotkey v2.0
+^!g::Run 'gloss paste --notify', , 'Hide'
+^!w::Run 'http://127.0.0.1:7789'   ; 前提：gloss serve 已在跑
+```
+
+> 别绑 `Win+G`——那是 Xbox Game Bar 的保留键。
+
+### 无边框弹窗（Chrome --app 的 Windows 版）
+
+```powershell
+gloss serve --no-browser
+Start-Process chrome --app=http://127.0.0.1:7789 --window-size=640,720
+```
 
 ## Chrome --app 无边框弹窗（L2 的正确打开方式）
 
