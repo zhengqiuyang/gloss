@@ -42,6 +42,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+app = ["pyobjc-framework-Cocoa>=10.0", "pyobjc-framework-WebKit>=10.0"]
 
 [project.scripts]
 gloss = "gloss.cli:main"

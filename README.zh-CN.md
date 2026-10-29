@@ -43,6 +43,7 @@ $ gloss RAG
 - 🔗 **自动关联**：相关概念互相链接，未收录的名字自动挂起、后续回填
 - 📝 **管道输入**：`pbpaste | gloss` 把一段话消化成摘要卡片，并提示值得单独收录的术语
 - 📋 **`gloss paste`**：免打字——直接读剪贴板，配合 `alias gp='gloss paste'` + [全局快捷键方案](extras/README.md)，复制即收录
+- 🍃 **`gloss app`**：菜单栏常驻小应用（pyobjc，约几 MB 依赖），⌥⌘G 在鼠标附近弹出浮窗卡片，Esc 关窗回到阅读
 - 🖼 **`gloss img screenshot.png`**：用视觉模型解析截图/图表
 - 🔍 **全文搜索**（SQLite FTS5），覆盖词条、详情、标签
 - 📅 **`gloss review`**：本周新学复盘，按领域分组
@@ -84,6 +85,7 @@ gloss demo                        # 导入示例词库（无需 API key）
 gloss paste                       # 直接读剪贴板：文字 → 词条/摘要，截图 → 视觉解析
 gloss paste --notify              # 同上，但结果走系统通知（配全局快捷键用）
 gloss serve                       # 本地网页弹窗 + HTTP API（预填剪贴板，可点词跳查）
+gloss app                         # 菜单栏应用：⌥⌘G 全局热键弹窗 + 常驻服务
 gloss QUIC                        # 查询/收录一个术语
 gloss RAG -n "读 agent 文档时" -s "https://…"   # 记录语境和来源
 gloss RAG --refresh               # 忽略缓存重新生成，保留历史
@@ -119,10 +121,11 @@ gloss 在生成卡片时会把**你已有的词条名**作为 `known_terms` 一�
 
 - [x] 零打字捕获：`gloss paste` + 全局快捷键配方（[extras/README.md](extras/README.md)）
 - [x] 本地 Web 弹窗 + HTTP API（`gloss serve`，未来一切入口的底座）
+- [x] 菜单栏应用 + 全局热键弹窗（`gloss app`）
 - [ ] 本地 embedding 语义搜索（按意思找卡片，而不是关键词）
 - [ ] 间隔复习模式（`gloss quiz`）
 - [ ] MCP server，让编辑器/agent 能查你的词库
-- [ ] 原生划词面板、微信/Telegram bot（基于 `gloss serve` 的 API）
+- [ ] 微信/Telegram bot（基于 `gloss serve` 的 API）
 
 ## 参与
 

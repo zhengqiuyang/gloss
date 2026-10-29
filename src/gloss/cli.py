@@ -152,7 +152,7 @@ def serve(port: Optional[int], no_browser: bool) -> None:
     except OSError as exc:
         raise GlossError(f"端口 {port} 被占用（{exc}）。换个端口试试: gloss serve --port 7790")
     ui.console.print(f"[green]gloss 网页版已启动: http://127.0.0.1:{port}[/green]（Ctrl+C 退出）")
-    ui.console.print("做成弹窗/快捷键的配方见 extras/README.md")
+    ui.console.print("做成弹窗/快捷键的配方见 extras/README.md；常驻方案: gloss app")
     if not no_browser:
         webbrowser.open(f"http://127.0.0.1:{port}")
     try:
@@ -161,6 +161,16 @@ def serve(port: Optional[int], no_browser: bool) -> None:
         ui.console.print("\n再见。")
     finally:
         srv.server_close()
+
+
+@cli.command("app")
+@click.option("--no-hotkey", is_flag=True, help="不注册全局快捷键 ⌥⌘G")
+@click.option("--hidden", is_flag=True, help="启动时不弹出窗口")
+def app_cmd(no_hotkey: bool, hidden: bool) -> None:
+    """启动菜单栏应用：全局热键弹窗 + 常驻服务（需安装 pyobjc）。"""
+    from .app import run_app
+
+    run_app(no_hotkey=no_hotkey, show_on_start=not hidden)
 
 
 @cli.command()

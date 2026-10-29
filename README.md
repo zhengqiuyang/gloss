@@ -55,6 +55,8 @@ So gloss inverts the workflow:
   card and suggests key terms worth glossing next
 - 📋 **`gloss paste`** — zero typing: gloss straight from the clipboard; pair it
   with `alias gp='gloss paste'` and a [global hotkey recipe](extras/README.md)
+- 🍃 **`gloss app`** — menu-bar resident app (pyobjc, a few MB of deps): ⌥⌘G pops
+  a floating card near your cursor, Esc closes it and you're back to reading
 - 🖼 **`gloss img screenshot.png`** — parse an image (screenshot, diagram) via a
   vision model
 - 🔍 **Full-text search** (SQLite FTS5) across terms, details and tags
@@ -101,6 +103,7 @@ gloss demo                        # seed a sample glossary (no API key needed)
 gloss paste                       # gloss whatever is in the clipboard (text or screenshot)
 gloss paste --notify              # same, but the result arrives as a system notification
 gloss serve                       # local web popup + HTTP API, pre-filled from clipboard
+gloss app                         # menu-bar app: ⌥⌘G popup anywhere + always-on service
 gloss QUIC                        # look up / ingest a term
 gloss RAG -n "读 agent 文档时" -s "https://…"   # record context + source
 gloss RAG --refresh               # re-ask the model, keep history
@@ -141,10 +144,11 @@ configure. Nothing is sent anywhere else, and no telemetry exists.
 
 - [x] Zero-typing capture: `gloss paste` + global hotkey recipes ([extras/README.md](extras/README.md))
 - [x] Local web popup + HTTP API (`gloss serve` — the base for every future surface)
+- [x] Menu-bar app with global-hotkey popup (`gloss app`)
 - [ ] Semantic search with local embeddings (find cards by meaning, not keywords)
 - [ ] Spaced-repetition review mode (`gloss quiz`)
 - [ ] MCP server so editors/agents can query your glossary
-- [ ] Native hotkey panel, WeChat/Telegram bot (built on `gloss serve`'s API)
+- [ ] WeChat/Telegram bot (built on `gloss serve`'s API)
 
 ## Contributing
 
