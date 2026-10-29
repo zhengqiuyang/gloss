@@ -4,7 +4,7 @@
 本页按实现成本从低到高给方案，按需取用。
 
 > 平台备注：`gloss paste` 剪贴板捕获（文字 + 截图）与 **L3 全局热键弹窗**
-> （macOS `gloss app` ⌥⌘G / Windows `gloss hotkey` Ctrl+G）双平台可用；
+> （macOS `gloss app` ⌘G / Windows `gloss hotkey` Ctrl+G）双平台可用；
 > L1 系统通知目前仅 **macOS**；`gloss serve`（L2）全平台可用。
 
 ## L3 · 菜单栏应用（体验天花板，推荐）
@@ -19,10 +19,14 @@ uv tool install "gloss-cli[app] @ git+https://github.com/zhengqiuyang/gloss"
 gloss hotkey --startup
 ```
 
-之后任何时候（macOS）：⌥⌘G → 卡片浮在鼠标附近（自动预填剪贴板，可编辑）→ 回车查询 →
+之后任何时候（macOS）：⌘G → 卡片浮在鼠标附近（自动预填剪贴板，可编辑）→ 回车查询 →
 Esc 关窗回到阅读。应用自带常驻服务，不需要再跑 `gloss serve`。
 `gloss app --hidden` 启动时不弹窗；`--no-hotkey` 关闭全局热键。
 Windows 上对应的是 `gloss hotkey`（Ctrl+G 呼出无边框卡片 + 托盘常驻）。
+
+> 全局热键是系统级注册：gloss 运行期间 ⌘G / Ctrl+G 会被它接管（浏览器「查找下一个」
+> 会落到 gloss）。介意就换组合：macOS `gloss config set app.hotkey alt+cmd+g`（⌥⌘G）、
+> Windows `gloss config set app.hotkey ctrl+alt+g`。
 
 ## L0 · 命令打到最短（必做，1 分钟）
 
@@ -65,7 +69,7 @@ gloss serve                # 启动后自动打开 http://127.0.0.1:7789
    - 通知版：`$HOME/.local/bin/gloss paste --notify`
    - 弹窗版：`open -a "Google Chrome" --args --app=http://127.0.0.1:7789`，
      前提是先在终端跑着 `gloss serve`
-2. 快捷指令详情 → 「添加键盘快捷键」（如 ⌥⌘G）
+2. 快捷指令详情 → 「添加键盘快捷键」（如 ⌘G）
 
 ### 2. Raycast
 
@@ -97,7 +101,7 @@ system-wide hotkey"。设一个热键（如 ⌥Space）呼出一个悬浮半透�
 
 ### 全局热键（gloss hotkey，零依赖，推荐）
 
-macOS 有 `gloss app`（⌥⌘G），Windows 的对称能力是 `gloss hotkey`——
+macOS 有 `gloss app`（⌘G），Windows 的对称能力是 `gloss hotkey`——
 用 Win32 `RegisterHotKey` 注册系统热键（不需要装 AutoHotkey）：
 
 ```powershell

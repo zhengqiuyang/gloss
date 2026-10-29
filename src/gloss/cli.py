@@ -169,7 +169,7 @@ def serve(port: Optional[int], no_browser: bool) -> None:
 
 
 @cli.command("app")
-@click.option("--no-hotkey", is_flag=True, help="不注册全局快捷键 ⌥⌘G")
+@click.option("--no-hotkey", is_flag=True, help="不注册全局快捷键 ⌘G")
 @click.option("--hidden", is_flag=True, help="启动时不弹出窗口")
 def app_cmd(no_hotkey: bool, hidden: bool) -> None:
     """启动菜单栏应用：全局热键弹窗 + 常驻服务（需安装 pyobjc）。"""
@@ -193,7 +193,7 @@ def hotkey_cmd(startup_mode: str, detach_mode: bool) -> None:
       gloss hotkey --detach     # 后台隐藏驻留（不留控制台窗口）
       gloss hotkey --startup    # 写入开机自启（登录后自动隐藏运行）
 
-    macOS 的对应能力是 gloss app（菜单栏 + ⌥⌘G）。
+    macOS 的对应能力是 gloss app（菜单栏 + ⌘G）。
     """
     from . import hotkey
 

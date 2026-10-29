@@ -62,7 +62,7 @@ gloss 做的是同一件事：替你写页边注，并把每一条都留下来�
 - 🔗 **自动关联**：相关概念互相链接，未收录的名字自动挂起、后续回填
 - 📝 **管道输入**：`pbpaste | gloss` 把一段话消化成摘要卡片，并提示值得单独收录的术语
 - 📋 **`gloss paste`**：免打字——直接读剪贴板，配合 `alias gp='gloss paste'` + [全局快捷键方案](extras/README.md)，复制即收录
-- 🍃 **`gloss app`**：菜单栏常驻小应用（pyobjc，约几 MB 依赖），⌥⌘G 在鼠标附近弹出浮窗卡片，Esc 关窗回到阅读
+- 🍃 **`gloss app`**：菜单栏常驻小应用（pyobjc，约几 MB 依赖），⌘G 在鼠标附近弹出浮窗卡片，Esc 关窗回到阅读
 - ⌨️ **`gloss hotkey`**（Windows）：⌘G 的对应物——任意界面复制后按 Ctrl+G，弹出无边框置顶卡片（WebView2 原生窗口；未装 pywebview 时回退浏览器窗口）
 - 🖼 **`gloss img screenshot.png`**：用视觉模型解析截图/图表
 - 🔍 **全文搜索**（SQLite FTS5），覆盖词条、详情、标签
@@ -106,7 +106,7 @@ gloss paste                       # 直接读剪贴板：文字 → 词条/摘�
 gloss paste --notify              # 同上，但结果走系统通知（配全局快捷键用）
 gloss serve                       # 本地网页弹窗 + HTTP API（预填剪贴板，可点词跳查）
 gloss hotkey                      # Windows：全局热键弹窗（Ctrl+G，对齐 macOS ⌘G），剪贴板内容直接出卡
-gloss app                         # 菜单栏应用：⌥⌘G 全局热键弹窗 + 常驻服务
+gloss app                         # 菜单栏应用：⌘G 全局热键弹窗 + 常驻服务
 gloss QUIC                        # 查询/收录一个术语
 gloss RAG -n "读 agent 文档时" -s "https://…"   # 记录语境和来源
 gloss RAG --refresh               # 忽略缓存重新生成，保留历史

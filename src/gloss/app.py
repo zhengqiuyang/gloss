@@ -1,6 +1,6 @@
 """gloss app: a tiny native macOS shell around the local web popup.
 
-Menu-bar item + global hotkey (⌥⌘G) + a floating panel showing the same
+Menu-bar item + global hotkey (⌘G) + a floating panel showing the same
 card UI as `gloss serve` (loaded from an in-process server, so the service
 is alive for exactly as long as the app is).
 

@@ -72,7 +72,7 @@ for you, and keeps every one of them.
   card and suggests key terms worth glossing next
 - 📋 **`gloss paste`** — zero typing: gloss straight from the clipboard; pair it
   with `alias gp='gloss paste'` and a [global hotkey recipe](extras/README.md)
-- 🍃 **`gloss app`** — menu-bar resident app (pyobjc, a few MB of deps): ⌥⌘G pops
+- 🍃 **`gloss app`** — menu-bar resident app (pyobjc, a few MB of deps): ⌘G pops
   a floating card near your cursor, Esc closes it and you're back to reading
 - ⌨️ **`gloss hotkey`** (Windows) — the ⌘G counterpart: copy anywhere, press
   Ctrl+G, a frameless always-on-top card pops up (WebView2; browser-window
@@ -124,7 +124,7 @@ gloss paste                       # gloss whatever is in the clipboard (text or 
 gloss paste --notify              # same, but the result arrives as a system notification
 gloss serve                       # local web popup + HTTP API, pre-filled from clipboard
 gloss hotkey                      # Windows: global-hotkey popup (Ctrl+G), card from clipboard
-gloss app                         # menu-bar app: ⌥⌘G popup anywhere + always-on service
+gloss app                         # menu-bar app: ⌘G popup anywhere + always-on service
 gloss QUIC                        # look up / ingest a term
 gloss RAG -n "读 agent 文档时" -s "https://…"   # record context + source
 gloss RAG --refresh               # re-ask the model, keep history
