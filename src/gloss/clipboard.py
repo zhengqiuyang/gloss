@@ -29,8 +29,11 @@ def read_clipboard() -> Tuple[str, str]:
         tmp.close()
         return "image", tmp.name
 
+    import sys
+
+    note = "（剪贴板捕获目前仅支持 macOS）" if sys.platform != "darwin" else ""
     raise GlossError(
-        "剪贴板里没有文字也没有图片。先复制一个词/一段话/一张截图，再跑 gloss paste。"
+        "剪贴板里没有文字也没有图片。先复制一个词/一段话/一张截图，再跑 gloss paste。" + note
     )
 
 

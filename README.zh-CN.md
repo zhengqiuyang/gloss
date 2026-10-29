@@ -42,6 +42,16 @@ $ gloss RAG
 *glōssa*（舌头、语言）。把页边的注汇编起来，就是 glossary（术语表）。
 gloss 做的是同一件事：替你写页边注，并把每一条都留下来。
 
+## 平台支持
+
+| 层 | 可运行范围 |
+|---|---|
+| 核心 CLI——查询/词库/edit/rm/翻译/review/stats/export/`gloss serve`/`gloss demo` | **全平台**（Python 3.9+，运行时依赖仅 click/rich/openai） |
+| `gloss paste`（剪贴板捕获）、`gloss app`（菜单栏 + ⌘G 弹窗） | **仅 macOS**——依赖 pbpaste/osascript 剪贴板、pyobjc、Carbon 热键 |
+| Windows / Linux | 核心 CLI 与 `gloss serve` 现已可用；剪贴板捕获与原生浮窗需要适配层（欢迎贡献，见 `src/gloss/clipboard.py`） |
+
+> 本项目当前主力开发与交互体验（⌘G 热键弹窗、菜单栏应用、剪贴板/截图捕获）均在 **macOS** 上完成与验证。
+
 ## 功能
 
 - 📖 **术语查询**：别名、一句话定义、简明详情、领域标签

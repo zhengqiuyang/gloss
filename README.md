@@ -53,6 +53,14 @@ a difficult word — the word is Greek in origin, *glōssa*, "tongue, language".
 Collect the margins and you have a *glossary*. gloss writes those margin notes
 for you, and keeps every one of them.
 
+## Platform support
+
+| Layer | Where it runs |
+|---|---|
+| Core CLI — lookup, glossary, edit/rm, translate, review, stats, export, `gloss serve`, `gloss demo` | **Cross-platform** (any Python 3.9+; runtime deps only click/rich/openai) |
+| `gloss paste` (clipboard capture), `gloss app` (menu bar + ⌘G popup) | **macOS only** — pbpaste/osascript pasteboard, pyobjc, Carbon hotkey |
+| Windows / Linux | Core CLI and `gloss serve` work today; clipboard capture and the native panel need adapters (contributions welcome — see `src/gloss/clipboard.py`) |
+
 ## Features
 
 - 📖 **Term lookup** with aliases, one-liner, concise detail, domain tags
