@@ -152,8 +152,9 @@ class GlossLLM:
             {"role": "system", "content": system},
             {"role": "user", "content": content},
         ]
+        client = self.client  # 未配 key 的友好报错在属性里，别让它被网络错误的包装盖住
         try:
-            resp = self.client.chat.completions.create(
+            resp = client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=0.2,

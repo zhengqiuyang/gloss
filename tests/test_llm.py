@@ -102,3 +102,15 @@ def test_extract_json_from_typical_llm_reply():
     data = extract_json(reply)
     assert data["term"] == "QUIC"
     assert data["related"] == ["TCP", "HTTP/3"]
+
+
+def test_missing_key_error_is_friendly_and_unwrapped(home):
+    """新用户看到的第一个错误不该顶着"调用模型失败"的误导前缀。"""
+    from gloss.llm import get_client
+    from gloss.models import GlossError
+
+    with pytest.raises(GlossError) as exc:
+        get_client().explain_term("QUIC", [])
+    message = str(exc.value)
+    assert "还没有配置 API key" in message
+    assert "调用模型失败" not in message
