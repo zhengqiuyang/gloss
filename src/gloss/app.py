@@ -34,7 +34,8 @@ def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
     except ImportError as exc:
         raise GlossError(
             "gloss app 需要 macOS 原生绑定（pyobjc）：\n"
-            "  uv pip install 'gloss-cli[app]'\n"
+            "  uv tool install --reinstall -e '.[app]'   # 从源码目录\n"
+            "  或 uv pip install 'gloss-cli\\[app]'      # 注意 \\[，别让 shell/rich 吃掉方括号\n"
             "  或 pip install pyobjc-framework-Cocoa pyobjc-framework-WebKit\n"
             "不装也没关系：gloss serve + 系统快捷键（见 extras/README.md）是等价替代。"
         ) from exc
