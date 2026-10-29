@@ -12,15 +12,23 @@ English | [简体中文](README.zh-CN.md)
 
 ## You pay for the same word three times
 
-It's 11 PM. You're reading a paper on retrieval-augmented generation when an
-acronym blocks the way: **HNSW**.
+It's 11 PM. You're deep in a paper on retrieval-augmented generation.
 
-You switch to the browser, search, skim two blog posts, and get it — layered
-graphs, greedy descent, trading a little accuracy for a hundredfold speed.
-Back to the paper. Ten minutes later, HNSW appears again. You stare at it for
-three seconds: wait… what did I look up about it?
+Third paragraph. An acronym blocks the way: **HNSW**.
 
-So you search again.
+You know the drill. New tab. Search. Two blog posts, skimmed. Layered graphs,
+greedy descent — trading a little accuracy for a hundredfold speed. Got it.
+Back to the paper.
+
+Ten minutes later:
+
+**HNSW.**
+
+Again.
+
+You stare at it for three seconds. *Wait… what did I look up about it?*
+
+So you go search again.
 
 That's not a memory problem — it's a tool-shape problem. Search engines and
 chat windows are built for one question at a time: you ask, they answer, and
