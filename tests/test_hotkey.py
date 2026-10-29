@@ -82,6 +82,17 @@ def test_open_popup_routes_native_vs_browser(monkeypatch):
     assert calls == [("native", 7789), ("browser", 7789)]
 
 
+def test_detach_prefers_pythonw(monkeypatch, tmp_path):
+    spawned = []
+    monkeypatch.setattr(hotkey.subprocess, "Popen", lambda cmd, **k: spawned.append(cmd))
+    monkeypatch.setattr(hotkey.sys, "executable", str(tmp_path / "python.exe"))
+    (tmp_path / "pythonw.exe").write_bytes(b"")
+    monkeypatch.setattr(hotkey.os, "environ", {"SystemRoot": str(tmp_path)})
+    hotkey.detach()
+    assert spawned[0][0].endswith("pythonw.exe")
+    assert spawned[0][1][1:] == ["-m", "gloss", "hotkey"]
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="guard only observable off-Windows")
 def test_run_hotkey_raises_on_non_windows(monkeypatch):
     from gloss.models import GlossError

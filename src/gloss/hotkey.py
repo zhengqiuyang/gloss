@@ -241,7 +241,8 @@ def _hotkey_loop(raise_errors: bool) -> None:
         parsed = parse_hotkey(FALLBACK_SPEC)
         if not user32.RegisterHotKey(None, HOTKEY_ID, parsed[0], parsed[1]):
             message = (
-                f"全局热键注册失败（{FALLBACK_SPEC} 也被占用）。换个组合试试: "
+                f"全局热键注册失败（{FALLBACK_SPEC} 也被占用）。可能已经有一个 "
+                f"gloss hotkey 在运行（看系统托盘的 📖 图标）；想换组合: "
                 f"gloss config set app.hotkey ctrl+alt+g"
             )
             if raise_errors:
@@ -269,6 +270,24 @@ def _hotkey_loop(raise_errors: bool) -> None:
                 os._exit(0)
         user32.TranslateMessage(ptr)
         user32.DispatchMessageW(ptr)
+
+
+def detach() -> None:
+    """Spawn a windowless resident `gloss hotkey` and return immediately.
+
+    Prefers pythonw.exe so no console is ever created — nothing shows up
+    in the taskbar no matter how this was launched.
+    """
+    pythonw = Path(sys.executable).with_name("pythonw.exe")
+    exe = str(pythonw) if pythonw.exists() else sys.executable
+    subprocess.Popen(
+        [exe, "-m", "gloss", "hotkey"],
+        creationflags=CREATE_NO_WINDOW,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        cwd=os.environ.get("SystemRoot", "."),
+    )
 
 
 def _trigger() -> None:

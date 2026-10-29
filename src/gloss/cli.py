@@ -183,11 +183,14 @@ def app_cmd(no_hotkey: bool, hidden: bool) -> None:
               help="写入开机自启后退出（登录后热键直接可用）")
 @click.option("--no-startup", "startup_mode", flag_value="remove", default=None,
               help="移除开机自启后退出")
-def hotkey_cmd(startup_mode: str) -> None:
+@click.option("--detach", "detach_mode", is_flag=True, default=False,
+              help="后台隐藏启动并立即返回（不留控制台窗口）")
+def hotkey_cmd(startup_mode: str, detach_mode: bool) -> None:
     """全局热键弹窗（Windows）：复制 → 热键 → 卡片。热键取配置 app.hotkey。
 
     \b
-      gloss hotkey              # 前台运行，Ctrl+Alt+G 呼出弹窗
+      gloss hotkey              # 前台运行，Ctrl+G 呼出弹窗
+      gloss hotkey --detach     # 后台隐藏驻留（不留控制台窗口）
       gloss hotkey --startup    # 写入开机自启（登录后自动隐藏运行）
 
     macOS 的对应能力是 gloss app（菜单栏 + ⌥⌘G）。
@@ -203,6 +206,10 @@ def hotkey_cmd(startup_mode: str) -> None:
             ui.console.print("[green]✓ 已移除开机自启[/green]")
         else:
             ui.console.print("[dim]本来就没有开机自启。[/dim]")
+        return
+    if detach_mode:
+        hotkey.detach()
+        ui.console.print("[green]✓ 已在后台驻留[/green]（托盘 📖 图标可见，右键可退出）")
         return
     hotkey.run_hotkey()
 
