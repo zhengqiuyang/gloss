@@ -2,6 +2,8 @@
 
 **查一次，永久拥有。**
 
+[English](README.md) | 简体中文
+
 > 给生词本换上一颗大模型的心脏 · 本地优先 · 任意 OpenAI 兼容服务
 
 [![CI](https://github.com/zhengqiuyang/gloss/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengqiuyang/gloss/actions/workflows/ci.yml)

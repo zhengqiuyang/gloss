@@ -2,6 +2,8 @@
 
 **Learn a term once, own it forever.**
 
+English | [简体中文](README.zh-CN.md)
+
 > A vocabulary notebook with an LLM for a heart · local-first · works with any OpenAI-compatible API
 
 [![CI](https://github.com/zhengqiuyang/gloss/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengqiuyang/gloss/actions/workflows/ci.yml)
