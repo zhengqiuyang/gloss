@@ -24,6 +24,10 @@ $ gloss RAG
 卡片存进本地 SQLite。下次再遇到 `RAG`，查询是一次瞬时的 **缓存命中——0 token、0 延迟**。
 日积月累，gloss 会变成你的「名词解释缓存」和一张只有你拥有的概念图谱——这是任何聊天窗口都给不了你的东西。
 
+> **还没有 API key？** 运行 `gloss demo` 导入一套示例词库（9 张互相关联的卡片），
+> 离线体验所有浏览功能——`gloss ls`、`gloss RAG`、`gloss related RAG`、
+> `gloss search 向量`、`gloss review`。不想要了随时 `gloss demo --clear`。
+
 ## 为什么做这个
 
 问三次聊天机器人"RAG 是什么"，你付三次钱，答案蒸发三次。真正贵重的步骤不是"问"，而是"留住"。所以 gloss 把工作流反过来：
@@ -75,6 +79,7 @@ gloss config set llm.model deepseek-chat
 ## 用法
 
 ```bash
+gloss demo                        # 导入示例词库（无需 API key）
 gloss QUIC                        # 查询/收录一个术语
 gloss RAG -n "读 agent 文档时" -s "https://…"   # 记录语境和来源
 gloss RAG --refresh               # 忽略缓存重新生成，保留历史

@@ -81,6 +81,30 @@ def img(image: str, note: str) -> None:
 
 
 @cli.command()
+@click.option("--clear", is_flag=True, help="删除之前 demo 导入的示例卡片")
+def demo(clear: bool) -> None:
+    """导入一套示例词库（不需要 API key），体验浏览/搜索/关联。"""
+    from .demo import clear_demo, seed_demo
+
+    if clear:
+        removed = clear_demo()
+        click.echo(f"已删除 {removed} 张示例卡片。")
+        return
+    added, skipped = seed_demo()
+    if added:
+        click.echo(f"已导入 {added} 张示例卡片" + (f"（跳过 {skipped} 张你已有的）" if skipped else "") + "。试试：\n")
+        click.echo("  gloss ls              # 看看词库长什么样")
+        click.echo("  gloss RAG             # 打开一张卡片")
+        click.echo("  gloss related RAG     # 看概念之间怎么连成网")
+        click.echo("  gloss search 向量      # 全文搜索")
+        click.echo("  gloss review --days 30 # 复盘")
+        click.echo("  gloss stats           # 统计")
+        click.echo("\n不想要这些示例了: gloss demo --clear")
+    else:
+        click.echo("示例卡片之前已经导入过" + (f"（跳过 {skipped} 张重名）" if skipped else "") + "，直接 gloss ls 看。")
+
+
+@cli.command()
 @click.option("-t", "--type", "card_type", type=click.Choice(["term", "snippet"]), default=None)
 @click.option("--tag", default=None, help="按标签过滤")
 @click.option("--limit", default=50, show_default=True)

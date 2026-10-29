@@ -27,6 +27,11 @@ machines) meet `RAG`, the lookup is an instant **cache hit — 0 tokens, 0 laten
 Over time, gloss becomes a term-explanation cache and a personal knowledge map
 that no chat window can give you.
 
+> **No API key yet?** `gloss demo` seeds a sample glossary (9 cards, linked) so
+> you can try every read command offline — `gloss ls`, `gloss RAG`,
+> `gloss related RAG`, `gloss search 向量`, `gloss review`. Clean up later with
+> `gloss demo --clear`.
+
 ## Why
 
 Ask a chatbot "what is RAG?" three times and you pay three times, and the answer
@@ -90,6 +95,7 @@ database is `~/.gloss/gloss.db`). Override the data directory with `GLOSS_HOME`.
 ## Usage
 
 ```bash
+gloss demo                        # seed a sample glossary (no API key needed)
 gloss QUIC                        # look up / ingest a term
 gloss RAG -n "读 agent 文档时" -s "https://…"   # record context + source
 gloss RAG --refresh               # re-ask the model, keep history

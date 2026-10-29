@@ -148,6 +148,32 @@ def get_card(name: str) -> Optional[Card]:
     return Card.from_row(row) if row else None
 
 
+def get_card_by_id(card_id: int) -> Optional[Card]:
+    row = connect().execute("SELECT * FROM cards WHERE id = ?", (card_id,)).fetchone()
+    return Card.from_row(row) if row else None
+
+
+def delete_card(card_id: int) -> bool:
+    """Delete a card; cascades its links and alias index via foreign keys."""
+    cur = connect().execute("DELETE FROM cards WHERE id = ?", (card_id,))
+    connect().commit()
+    return cur.rowcount > 0
+
+
+def get_meta(key: str) -> Optional[str]:
+    row = connect().execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_meta(key: str, value: str) -> None:
+    connect().execute(
+        "INSERT INTO meta (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value),
+    )
+    connect().commit()
+
+
 def increment_hit(card_id: int) -> None:
     conn = connect()
     conn.execute(
