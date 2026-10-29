@@ -59,7 +59,7 @@ for you, and keeps every one of them.
 |---|---|
 | Core CLI — lookup, glossary, edit/rm, translate, review, stats, export, `gloss serve`, `gloss demo` | **Cross-platform** (any Python 3.9+; runtime deps only click/rich/openai) |
 | `gloss paste` (clipboard capture: text + screenshots) | **macOS & Windows** — pbpaste/pasteboard and Win32 clipboard + PowerShell; Linux needs adapters (see `src/gloss/clipboard.py`) |
-| `gloss hotkey` (global-hotkey popup) | **Windows only** — Win32 `RegisterHotKey`, zero deps; pops a frameless browser window with the card. macOS counterpart: `gloss app` |
+| `gloss hotkey` (global-hotkey popup) | **Windows only** — Win32 `RegisterHotKey`, zero deps; pops a frameless, always-on-top card (WebView2 via pywebview, in the `.[app]` extra; falls back to a Chrome `--app` window without it). macOS counterpart: `gloss app` |
 | `gloss app` (menu bar + ⌘G popup) | **macOS only** — pyobjc, Carbon hotkey |
 | Linux | Core CLI and `gloss serve` work today; clipboard capture, hotkey popup and the native panel need adapters (contributions welcome — see `src/gloss/clipboard.py`) |
 
@@ -74,6 +74,9 @@ for you, and keeps every one of them.
   with `alias gp='gloss paste'` and a [global hotkey recipe](extras/README.md)
 - 🍃 **`gloss app`** — menu-bar resident app (pyobjc, a few MB of deps): ⌥⌘G pops
   a floating card near your cursor, Esc closes it and you're back to reading
+- ⌨️ **`gloss hotkey`** (Windows) — the ⌘G counterpart: copy anywhere, press
+  Ctrl+G, a frameless always-on-top card pops up (WebView2; browser-window
+  fallback without pywebview)
 - 🖼 **`gloss img screenshot.png`** — parse an image (screenshot, diagram) via a
   vision model
 - 🔍 **Full-text search** (SQLite FTS5) across terms, details and tags

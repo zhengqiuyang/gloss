@@ -48,7 +48,7 @@ gloss 做的是同一件事：替你写页边注，并把每一条都留下来�
 |---|---|
 | 核心 CLI——查询/词库/edit/rm/翻译/review/stats/export/`gloss serve`/`gloss demo` | **全平台**（Python 3.9+，运行时依赖仅 click/rich/openai） |
 | `gloss paste`（剪贴板捕获：文字 + 截图） | **macOS & Windows**——pbpaste/剪贴板 与 Win32 剪贴板 + PowerShell；Linux 需适配层（见 `src/gloss/clipboard.py`） |
-| `gloss hotkey`（全局热键弹窗） | **仅 Windows**——Win32 `RegisterHotKey` 零依赖，呼出无边框浏览器窗口出卡；macOS 对应能力是 `gloss app` |
+| `gloss hotkey`（全局热键弹窗） | **仅 Windows**——Win32 `RegisterHotKey` 零依赖，呼出无边框置顶卡片（WebView2，`.[app]` extra 中的 pywebview；未装则回退 Chrome `--app` 窗口）；macOS 对应能力是 `gloss app` |
 | `gloss app`（菜单栏 + ⌘G 弹窗） | **仅 macOS**——依赖 pyobjc、Carbon 热键 |
 | Linux | 核心 CLI 与 `gloss serve` 现已可用；剪贴板捕获、热键弹窗与原生浮窗需要适配层（欢迎贡献，见 `src/gloss/clipboard.py`） |
 
@@ -63,6 +63,7 @@ gloss 做的是同一件事：替你写页边注，并把每一条都留下来�
 - 📝 **管道输入**：`pbpaste | gloss` 把一段话消化成摘要卡片，并提示值得单独收录的术语
 - 📋 **`gloss paste`**：免打字——直接读剪贴板，配合 `alias gp='gloss paste'` + [全局快捷键方案](extras/README.md)，复制即收录
 - 🍃 **`gloss app`**：菜单栏常驻小应用（pyobjc，约几 MB 依赖），⌥⌘G 在鼠标附近弹出浮窗卡片，Esc 关窗回到阅读
+- ⌨️ **`gloss hotkey`**（Windows）：⌘G 的对应物——任意界面复制后按 Ctrl+G，弹出无边框置顶卡片（WebView2 原生窗口；未装 pywebview 时回退浏览器窗口）
 - 🖼 **`gloss img screenshot.png`**：用视觉模型解析截图/图表
 - 🔍 **全文搜索**（SQLite FTS5），覆盖词条、详情、标签
 - 📅 **`gloss review`**：本周新学复盘，按领域分组

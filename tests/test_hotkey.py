@@ -55,17 +55,31 @@ def test_ensure_serve_spawns_and_waits_when_port_down(monkeypatch):
     assert "--no-browser" in cmd
 
 
-def test_open_popup_prefers_chrome_then_edge(monkeypatch):
+def test_open_browser_popup_prefers_chrome_then_edge(monkeypatch):
     spawned = []
     monkeypatch.setattr(hotkey.subprocess, "Popen", lambda cmd, **k: spawned.append(cmd))
     monkeypatch.setattr(hotkey.os.path, "exists", lambda p: p.endswith("chrome.exe"))
-    hotkey._open_popup(7789)
+    hotkey._open_browser_popup(7789)
     assert spawned[0][0].endswith("chrome.exe")
     assert "--app=http://127.0.0.1:7789" in spawned[0]
 
     monkeypatch.setattr(hotkey.os.path, "exists", lambda p: False)
-    hotkey._open_popup(7789)
+    hotkey._open_browser_popup(7789)
     assert spawned[1][0] == "msedge.exe"
+
+
+def test_open_popup_routes_native_vs_browser(monkeypatch):
+    calls = []
+    monkeypatch.setattr(hotkey, "_show_native_popup", lambda p: calls.append(("native", p)))
+    monkeypatch.setattr(hotkey, "_open_browser_popup", lambda p: calls.append(("browser", p)))
+
+    monkeypatch.setattr(hotkey, "_native_available", lambda: True)
+    hotkey._open_popup(7789)
+    assert calls == [("native", 7789)]
+
+    monkeypatch.setattr(hotkey, "_native_available", lambda: False)
+    hotkey._open_popup(7789)
+    assert calls == [("native", 7789), ("browser", 7789)]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="guard only observable off-Windows")
