@@ -66,6 +66,6 @@ def _pasteboard_png() -> Optional[bytes]:
 
 def image_supported_hint() -> str:
     return (
-        "图片解析需要一个视觉模型：配置 llm.vision_model（DeepSeek 不支持视觉，"
-        "可用智谱 GLM-4V、OpenAI gpt-4o-mini 等）。"
+        "图片解析需要一个视觉模型：配置 llm.vision_model"
+        "（如 deepseek-flash、GLM-4V、gpt-4o-mini 等）。"
     )

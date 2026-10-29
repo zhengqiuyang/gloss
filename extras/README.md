@@ -84,7 +84,7 @@ open -a "Google Chrome" --args --app=http://127.0.0.1:7789 --window-size=640,720
 
 - **不要**做"监控剪贴板自动收录"：你会复制密码、地址、临时文字，全部自动
   打给 LLM 又贵又不安全。显式触发才是正确姿势。
-- 截图解析需要配置 `llm.vision_model`（DeepSeek 不支持视觉；可用智谱
+- 截图解析需要配置 `llm.vision_model`（如 DeepSeek 的 deepseek-flash、智谱
   GLM-4V、OpenAI gpt-4o-mini、本地 qwen2.5-vl 等）。文字部分不受影响。
 - `gloss serve` 只绑定 127.0.0.1，同机任意程序都能调用它的 API（无鉴权），
   这是本地单用户工具的合理默认；不要手动改成 0.0.0.0 暴露到局域网。
