@@ -178,7 +178,7 @@ _PAGE = """<!doctype html>
   * { box-sizing: border-box; margin: 0; }
   html, body { height: 100%; }
   body {
-    font: 15px/1.7 -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    font: 13.5px/1.6 -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
     background: var(--bg); color: var(--text);
     -webkit-font-smoothing: antialiased;
   }
@@ -191,13 +191,13 @@ _PAGE = """<!doctype html>
   }
   body.glass .card { box-shadow: none; }
   body.glass .searchbar { box-shadow: none; }
-  .app { max-width: 720px; margin: 0 auto; padding: 14px 14px 18px; }
+  .app { max-width: 720px; margin: 0 auto; padding: 12px 12px 16px; }
 
   .searchbar {
     display: flex; align-items: center; gap: 9px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 13px; padding: 10px 14px;
+    border-radius: 11px; padding: 8px 12px;
     box-shadow: 0 1px 3px rgba(0,0,0,.05);
     position: sticky; top: 10px; z-index: 10;
     transition: border-color .16s, box-shadow .16s;
@@ -206,10 +206,10 @@ _PAGE = """<!doctype html>
     border-color: var(--accent);
     box-shadow: 0 0 0 3.5px rgba(10,132,255,.16), 0 1px 3px rgba(0,0,0,.05);
   }
-  .searchbar .icon { font-size: 17px; user-select: none; }
+  .searchbar .icon { font-size: 15px; user-select: none; }
   #q {
     flex: 1; border: 0; outline: 0; background: transparent; color: inherit;
-    font-size: 15.5px; font-family: inherit;
+    font-size: 14px; font-family: inherit;
   }
   #q::placeholder { color: var(--text2); }
   kbd {
@@ -220,7 +220,7 @@ _PAGE = """<!doctype html>
   }
   .hint { color: var(--amber); font-size: 12.5px; margin: 8px 4px 0; min-height: 1.2em; }
 
-  #out { margin-top: 12px; max-height: calc(100vh - 128px); overflow-y: auto;
+  #out { margin-top: 10px; max-height: calc(100vh - 104px); overflow-y: auto;
          scrollbar-width: thin; }
   #out::-webkit-scrollbar { width: 8px; }
   #out::-webkit-scrollbar-thumb { background: rgba(128,128,128,.35); border-radius: 4px; }
@@ -228,59 +228,59 @@ _PAGE = """<!doctype html>
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 14px; padding: 16px 18px 14px; margin-bottom: 10px;
+    border-radius: 12px; padding: 13px 15px 12px; margin-bottom: 9px;
     box-shadow: 0 8px 22px rgba(0,0,0,.07);
     animation: pop .24s cubic-bezier(.2, .9, .3, 1.15);
   }
   @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.985); } }
 
-  .topline { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .topline { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
   .badge {
-    font-size: 11px; font-weight: 600; letter-spacing: .02em;
-    padding: 2px 10px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 600; letter-spacing: .02em;
+    padding: 2px 9px; border-radius: 999px;
   }
   .badge.new { color: var(--accent); background: rgba(10,132,255,.13); }
   .badge.hit { color: var(--green); background: rgba(48,209,88,.14); }
   .hits { font-size: 11.5px; color: var(--text2); }
 
-  h1 { font-size: 21px; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; }
-  .aka { color: var(--text2); font-size: 12.5px; margin-top: 3px; }
+  h1 { font-size: 18px; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; }
+  .aka { color: var(--text2); font-size: 11.5px; margin-top: 3px; }
 
   .oneliner {
-    margin: 12px 0 9px; padding: 8px 12px;
-    font-weight: 600; font-size: 14.5px; line-height: 1.6;
+    margin: 10px 0 8px; padding: 6px 10px;
+    font-weight: 600; font-size: 13px; line-height: 1.55;
     border-left: 3px solid var(--accent); border-radius: 8px;
     background: rgba(10,132,255,.07);
   }
-  .detail { font-size: 13.5px; color: var(--text3); white-space: pre-wrap; }
+  .detail { font-size: 12.5px; color: var(--text3); white-space: pre-wrap; }
 
-  .tags { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
   .tag {
-    font-size: 11.5px; font-weight: 500; color: var(--purple);
-    background: rgba(191,90,242,.1); padding: 2px 9px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 500; color: var(--purple);
+    background: rgba(191,90,242,.1); padding: 2px 8px; border-radius: 999px;
   }
 
-  .section { margin-top: 13px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .section { margin-top: 11px; border-top: 1px solid var(--border); padding-top: 9px; }
   .label {
-    font-size: 11px; font-weight: 700; color: var(--text2);
+    font-size: 10.5px; font-weight: 700; color: var(--text2);
     text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px;
   }
   .ln, .pd {
     display: flex; align-items: baseline; gap: 8px;
-    padding: 6px 9px; margin: 0 -9px; border-radius: 9px;
+    padding: 4px 8px; margin: 0 -8px; border-radius: 9px;
     cursor: pointer; text-decoration: none;
   }
   .ln:hover, .pd:hover { background: rgba(10,132,255,.08); }
   .ln .t { color: var(--accent); font-weight: 600; }
   .pd .t { color: var(--amber); font-weight: 600; }
-  .ln small, .pd small { color: var(--text2); font-size: 12px; }
+  .ln small, .pd small { color: var(--text2); font-size: 11px; }
 
-  .meta { margin-top: 14px; color: var(--text2); font-size: 11.5px; }
+  .meta { margin-top: 12px; color: var(--text2); font-size: 10.5px; }
 
   .kts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
   .kt {
-    display: inline-block; cursor: pointer; font-size: 13px; font-weight: 500;
-    padding: 5px 14px; border-radius: 999px;
+    display: inline-block; cursor: pointer; font-size: 12px; font-weight: 500;
+    padding: 4px 12px; border-radius: 999px;
     background: rgba(255,159,10,.12); color: var(--amber);
     transition: transform .1s ease, background .1s ease;
   }
@@ -288,7 +288,7 @@ _PAGE = """<!doctype html>
 
   .err {
     background: rgba(255,69,58,.1); color: #ff453a;
-    border-radius: 14px; padding: 14px 18px; font-size: 14px;
+    border-radius: 12px; padding: 12px 16px; font-size: 13px;
     white-space: pre-wrap; animation: pop .2s ease;
   }
   .spin {
@@ -298,9 +298,9 @@ _PAGE = """<!doctype html>
   @keyframes pulse { 50% { opacity: .45; } }
 
   .empty { text-align: center; color: var(--text2); padding: 48px 0 26px; }
-  .empty .big { font-size: 36px; margin-bottom: 10px; }
-  .empty .slogan { font-size: 14px; color: var(--text3); margin-bottom: 12px; }
-  .empty .tips { font-size: 12.5px; line-height: 2.1; }
+  .empty .big { font-size: 28px; margin-bottom: 8px; }
+  .empty .slogan { font-size: 13px; color: var(--text3); margin-bottom: 12px; }
+  .empty .tips { font-size: 11.5px; line-height: 2; }
 </style>
 </head>
 <body>

@@ -225,7 +225,7 @@ def _build_delegate_class():
                 | A.NSWindowStyleMaskFullSizeContentView
             )
             panel = Panel.alloc().initWithContentRect_styleMask_backing_defer_(
-                F.NSMakeRect(0, 0, 580, 450), mask, A.NSBackingStoreBuffered, False
+                F.NSMakeRect(0, 0, 500, 380), mask, A.NSBackingStoreBuffered, False
             )
             panel.setTitlebarAppearsTransparent_(True)
             panel.setTitleVisibility_(A.NSWindowTitleHidden)
@@ -244,7 +244,7 @@ def _build_delegate_class():
 
             # frosted-glass backdrop under a transparent webview
             effect = A.NSVisualEffectView.alloc().initWithFrame_(
-                F.NSMakeRect(0, 0, 580, 450)
+                F.NSMakeRect(0, 0, 500, 380)
             )
             effect.setMaterial_(A.NSVisualEffectMaterialPopover)
             effect.setBlendingMode_(A.NSVisualEffectBlendingModeBehindWindow)
@@ -254,7 +254,7 @@ def _build_delegate_class():
 
             conf = WebKit.WKWebViewConfiguration.alloc().init()
             webview = WebKit.WKWebView.alloc().initWithFrame_configuration_(
-                F.NSMakeRect(0, 0, 580, 450), conf
+                F.NSMakeRect(0, 0, 500, 380), conf
             )
             webview.setUIDelegate_(self)
             webview.setValue_forKey_(False, "drawsBackground")  # let the blur show
