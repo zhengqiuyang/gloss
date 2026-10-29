@@ -46,6 +46,13 @@ So gloss inverts the workflow:
    own, gloss links them automatically (and back-links the other direction when
    you gloss it later). Your glossary grows into a graph.
 
+## Why "gloss"?
+
+A *gloss* is the note a scribe writes in the margin of a manuscript to explain
+a difficult word — the word is Greek in origin, *glōssa*, "tongue, language".
+Collect the margins and you have a *glossary*. gloss writes those margin notes
+for you, and keeps every one of them.
+
 ## Features
 
 - 📖 **Term lookup** with aliases, one-liner, concise detail, domain tags
