@@ -44,6 +44,16 @@ CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS translations (
+    id INTEGER PRIMARY KEY,
+    hash TEXT NOT NULL UNIQUE,
+    source TEXT NOT NULL,
+    target_lang TEXT NOT NULL,
+    translation TEXT NOT NULL,
+    tokens_used INTEGER NOT NULL DEFAULT 0,
+    hit_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
 """
 
 _FTS_DDL = """
@@ -166,6 +176,39 @@ def delete_card(card_id: int) -> bool:
 def get_meta(key: str) -> Optional[str]:
     row = connect().execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
     return row["value"] if row else None
+
+
+# ---------------------------------------------------------------------------
+# Translation cache (separate from the glossary on purpose: translated
+# sentences are content, not terms — they shouldn't pollute FTS or graphs)
+# ---------------------------------------------------------------------------
+
+def get_translation(hash_: str) -> Optional[dict]:
+    row = connect().execute(
+        "SELECT * FROM translations WHERE hash = ?", (hash_,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def insert_translation(hash_: str, source: str, target_lang: str,
+                       translation: str, tokens: int) -> dict:
+    conn = connect()
+    conn.execute(
+        """INSERT INTO translations (hash, source, target_lang, translation,
+                                     tokens_used, hit_count, created_at)
+           VALUES (?, ?, ?, ?, ?, 0, ?)""",
+        (hash_, source, target_lang, translation, tokens, now_iso()),
+    )
+    conn.commit()
+    return get_translation(hash_)
+
+
+def increment_translation_hit(id_: int) -> None:
+    conn = connect()
+    conn.execute(
+        "UPDATE translations SET hit_count = hit_count + 1 WHERE id = ?", (id_,)
+    )
+    conn.commit()
 
 
 def set_meta(key: str, value: str) -> None:

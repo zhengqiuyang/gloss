@@ -88,6 +88,20 @@ def render_digest(card: Card, key_terms: List[str]) -> None:
         console.print(table)
 
 
+def render_translation(result: dict) -> None:
+    if result["cache_hit"]:
+        badge = Text(
+            f"⚡ 缓存命中 · 0 token · 第 {result['hits']} 次翻译", style="green"
+        )
+    else:
+        badge = Text(f"🌐 已翻译 · {result['tokens']} tokens · 已缓存", style="cyan")
+    body = Text()
+    body.append(result["source"] + "\n\n", style="dim")
+    body.append(result["translation"])
+    console.print(Panel(body, title=f"🌐 译文（{result['target']}）",
+                        subtitle=badge, subtitle_align="left"))
+
+
 def render_list(cards: List[Card]) -> None:
     if not cards:
         console.print("[dim]词库还是空的。试试: gloss RAG[/dim]")

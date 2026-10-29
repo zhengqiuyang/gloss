@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import http.client
+import json
 import sys
+import threading
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 from click.testing import CliRunner
@@ -50,9 +53,11 @@ class FakeLLM:
         self.term_queue: List[Tuple[Dict[str, Any], int]] = [(dict(TERM_PAYLOAD), 900)]
         self.snippet_queue: List[Tuple[Dict[str, Any], int]] = [(dict(SNIPPET_PAYLOAD), 1200)]
         self.image_queue: List[Tuple[Dict[str, Any], int]] = [(dict(SNIPPET_PAYLOAD), 1500)]
+        self.translate_queue: List[Tuple[str, int]] = [("你好，世界", 60)]
         self.term_calls: List[Dict[str, Any]] = []
         self.snippet_calls: List[str] = []
         self.image_calls: List[str] = []
+        self.translate_calls: List[Tuple[str, str]] = []
 
     def explain_term(self, term, known_terms, context="", source=""):
         self.term_calls.append(
@@ -69,6 +74,12 @@ class FakeLLM:
     def analyze_image(self, image_path, note, known_terms):
         self.image_calls.append(image_path)
         return self.image_queue.pop(0)
+
+    def translate(self, text, target):
+        self.translate_calls.append((text, target))
+        if not self.translate_queue:
+            raise GlossError("FakeLLM 队列为空")
+        return self.translate_queue.pop(0)
 
 
 @pytest.fixture()
@@ -87,3 +98,31 @@ def make_card(term, **kwargs) -> Card:
     card = Card(term=term, **kwargs)
     db.insert_card(card)
     return card
+
+
+# -- shared server helpers (used by test_server and test_translate) ----------
+
+@pytest.fixture()
+def server_url(home, fake_llm):
+    from gloss.server import start_server
+
+    srv = start_server(0)
+    thread = threading.Thread(target=srv.serve_forever, daemon=True)
+    thread.start()
+    yield f"127.0.0.1:{srv.server_address[1]}"
+    srv.shutdown()
+    srv.server_close()
+
+
+def http_request(url, method="GET", payload: Optional[dict] = None, path: Optional[str] = None):
+    conn = http.client.HTTPConnection(url, timeout=30)
+    body = json.dumps(payload).encode() if payload is not None else None
+    headers = {"Content-Type": "application/json"} if payload is not None else {}
+    if path is None:
+        path = "/" if payload is None else "/api/lookup"
+    conn.request(method, path, body=body, headers=headers)
+    resp = conn.getresponse()
+    data = resp.read()
+    ctype = resp.getheader("Content-Type", "")
+    conn.close()
+    return resp.status, ctype, data

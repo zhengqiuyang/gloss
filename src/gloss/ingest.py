@@ -3,13 +3,16 @@
 These functions are UI-free: they return result dicts so the CLI, the local
 web server (and future entry points) can present however they like.
 Result shapes:
-  term:     {"card": Card, "cache_hit": bool, "linked": [Card],
-             "pending": [str], "backfilled": [Card]}
-  snippet:  {"card": Card, "key_terms": [str], "cache_hit": False}
+  term:       {"card": Card, "cache_hit": bool, "linked": [Card],
+               "pending": [str], "backfilled": [Card]}
+  snippet:    {"card": Card, "key_terms": [str], "cache_hit": False}
+  translate:  {"source": str, "translation": str, "target": str,
+               "cache_hit": bool, "hits": int, "tokens": int}
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 from typing import Any, Dict, List
 
@@ -157,3 +160,37 @@ def _unique_title(title: str) -> str:
         candidate = f"{title} ({n})"
         n += 1
     return candidate
+
+
+def translate_text(text: str) -> Dict[str, Any]:
+    """Translate text into the configured target language, cached forever."""
+    from .config import load_config
+
+    text = text.strip()
+    if not text:
+        raise GlossError("没有可翻译的内容")
+    target = load_config()["glossary"]["translate_target"]
+    hash_ = hashlib.sha1(f"{target}\n{text}".encode()).hexdigest()[:16]
+
+    cached = db.get_translation(hash_)
+    if cached:
+        db.increment_translation_hit(cached["id"])
+        return {
+            "source": cached["source"],
+            "translation": cached["translation"],
+            "target": target,
+            "cache_hit": True,
+            "hits": cached["hit_count"] + 1,
+            "tokens": 0,
+        }
+
+    translation, tokens = llm_mod.get_client().translate(text, target)
+    row = db.insert_translation(hash_, text, target, translation, tokens)
+    return {
+        "source": row["source"],
+        "translation": row["translation"],
+        "target": target,
+        "cache_hit": False,
+        "hits": 0,
+        "tokens": tokens,
+    }

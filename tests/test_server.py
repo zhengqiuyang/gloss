@@ -4,37 +4,10 @@ from __future__ import annotations
 
 import http.client
 import json
-import threading
-from typing import Optional
-
-import pytest
 
 from gloss import db
-from gloss.server import start_server
 
-
-@pytest.fixture()
-def server_url(home, fake_llm):
-    srv = start_server(0)
-    thread = threading.Thread(target=srv.serve_forever, daemon=True)
-    thread.start()
-    yield f"127.0.0.1:{srv.server_address[1]}"
-    srv.shutdown()
-    srv.server_close()
-
-
-def _request(url, method="GET", payload: Optional[dict] = None, path: Optional[str] = None):
-    conn = http.client.HTTPConnection(url, timeout=30)
-    body = json.dumps(payload).encode() if payload is not None else None
-    headers = {"Content-Type": "application/json"} if payload is not None else {}
-    if path is None:
-        path = "/" if payload is None else "/api/lookup"
-    conn.request(method, path, body=body, headers=headers)
-    resp = conn.getresponse()
-    data = resp.read()
-    ctype = resp.getheader("Content-Type", "")
-    conn.close()
-    return resp.status, ctype, data
+from conftest import http_request as _request
 
 
 def test_get_page_contains_input_and_prefill(server_url, monkeypatch):

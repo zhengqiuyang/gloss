@@ -98,6 +98,8 @@ def make_handler():
         def do_POST(self) -> None:
             if self.path == "/api/image":
                 return self._image()
+            if self.path == "/api/translate":
+                return self._translate()
             if self.path != "/api/lookup":
                 return self._json(404, {"error": "not found"})
             try:
@@ -140,6 +142,23 @@ def make_handler():
             except Exception as exc:
                 return self._json(500, {"error": f"内部错误: {exc}"})
             self._json(200, result_to_dict(result))
+
+        def _translate(self) -> None:
+            try:
+                length = min(int(self.headers.get("Content-Length", 0)), _MAX_BODY)
+                data = json.loads(self.rfile.read(length) or b"{}")
+            except (ValueError, json.JSONDecodeError):
+                return self._json(400, {"error": "请求体不是合法 JSON"})
+            text = str(data.get("text") or "").strip()
+            if not text:
+                return self._json(400, {"error": "text 不能为空"})
+            try:
+                result = ingest.translate_text(text)
+            except GlossError as exc:
+                return self._json(400, {"error": str(exc)})
+            except Exception as exc:
+                return self._json(500, {"error": f"内部错误: {exc}"})
+            self._json(200, result)
 
         @staticmethod
         def _vision_configured() -> bool:
@@ -227,6 +246,13 @@ _PAGE = """<!doctype html>
     border: 1px solid light-dark(rgba(0,0,0,.14), rgba(255,255,255,.16));
     border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; user-select: none;
   }
+  .tbtn {
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    color: var(--accent); background: rgba(10,132,255,.10);
+    border: 1px solid rgba(10,132,255,.35); border-radius: 8px;
+    padding: 3px 11px; user-select: none; transition: background .12s;
+  }
+  .tbtn:hover { background: rgba(10,132,255,.22); }
   .hint { color: var(--amber); font-size: 12px; margin: 7px 4px 0; min-height: 1.2em; }
 
   #out { margin-top: 10px; max-height: calc(100vh - 104px); overflow-y: auto;
@@ -319,6 +345,7 @@ _PAGE = """<!doctype html>
     <span class="icon">📖</span>
     <input id="q" type="text" placeholder="丢一个词进来，回车查询 / 收录" autocomplete="off" spellcheck="false" autofocus>
     <kbd>↵</kbd>
+    <button id="trbtn" class="tbtn" title="翻译输入框里的内容（译文缓存复用）">译</button>
   </div>
   <div class="hint" id="hint"></div>
   <div id="out">
@@ -448,6 +475,44 @@ async function lookupImage() {
     render({ error: "请求失败: " + e });
   }
 }
+function renderTranslation(d) {
+  out.textContent = "";
+  if (d.error) { out.appendChild(el("div", "err", d.error)); return; }
+  const card = el("div", "card");
+  const top = el("div", "topline");
+  top.appendChild(el("span", "badge " + (d.cache_hit ? "hit" : "new"),
+    d.cache_hit ? "⚡ 缓存命中 · 0 token · 第 " + d.hits + " 次" : "🌐 已翻译 · 已缓存"));
+  card.appendChild(top);
+  const src = el("div", "oneliner", d.source);
+  src.style.borderLeftColor = "var(--amber)";
+  src.style.background = "rgba(255,159,10,.08)";
+  src.style.color = "var(--text2)";
+  src.style.fontWeight = "400";
+  card.appendChild(src);
+  card.appendChild(el("div", "detail", d.translation));
+  card.appendChild(el("div", "meta", "目标语言 " + d.target + " · 相同内容再次翻译不花 token"));
+  out.appendChild(card);
+  out.scrollTop = 0;
+}
+
+async function translateCurrent() {
+  const text = q.value.trim();
+  if (!text) return;
+  out.textContent = "";
+  out.appendChild(el("div", "spin", "翻译中…"));
+  try {
+    const r = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text })
+    });
+    renderTranslation(await r.json());
+  } catch (e) {
+    renderTranslation({ error: "请求失败: " + e });
+  }
+}
+document.getElementById("trbtn").addEventListener("click", translateCurrent);
+
 q.addEventListener("keydown", e => { if (e.key === "Enter") lookup(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") window.close(); });
 

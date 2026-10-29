@@ -28,6 +28,7 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
     },
     "glossary": {
         "language": "中文",
+        "translate_target": "中文",
         "detail_max_chars": 160,
         "max_known_terms": 200,
     },
@@ -47,6 +48,7 @@ _CONFIG_SCHEMA = {
     "llm.api_key": str,
     "llm.timeout": int,
     "glossary.language": str,
+    "glossary.translate_target": str,
     "glossary.detail_max_chars": int,
     "glossary.max_known_terms": int,
     "serve.port": int,

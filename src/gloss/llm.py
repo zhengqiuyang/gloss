@@ -50,6 +50,15 @@ Rules:
 copy its spelling EXACTLY from known_terms.
 """
 
+TRANSLATE_SYSTEM = """You are a precise translation engine inside a personal glossary app.
+
+Rules:
+- Reply with ONLY a JSON object: {{"translation": str}}
+- Translate the user's text faithfully and naturally into {target}.
+- Keep code identifiers, file paths, URLs, and established technical terms untranslated.
+- If the text is already in {target}, translate it into English instead.
+"""
+
 
 def extract_json(text: str) -> Dict[str, Any]:
     """Pull the first balanced JSON object out of an LLM reply, tolerating fences/prose."""
@@ -222,6 +231,14 @@ class GlossLLM:
             + f"\n\nknown_terms: {json.dumps(known_terms, ensure_ascii=False)}"
         )
         return self.chat_json(system, user, image_path=image_path)
+
+    def translate(self, text: str, target: str) -> Tuple[str, int]:
+        system = TRANSLATE_SYSTEM.format(target=target)
+        data, tokens = self.chat_json(system, text[:8000])
+        translation = str(data.get("translation") or "").strip()
+        if not translation:
+            raise GlossError("模型没有返回译文")
+        return translation, tokens
 
 
 def _image_data_url(path: str) -> str:

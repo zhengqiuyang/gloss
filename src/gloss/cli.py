@@ -173,6 +173,21 @@ def app_cmd(no_hotkey: bool, hidden: bool) -> None:
     run_app(no_hotkey=no_hotkey, show_on_start=not hidden)
 
 
+@cli.command("tr")
+@click.argument("text", nargs=-1)
+def tr(text: Tuple[str, ...]) -> None:
+    """翻译文本（缓存复用）：gloss tr <文本>；不带参数则读剪贴板。"""
+    from .clipboard import read_clipboard
+
+    content = " ".join(text).strip()
+    if not content:
+        kind, data = read_clipboard()
+        if kind != "text":
+            raise GlossError("剪贴板里是图片，翻译只支持文字。")
+        content = data
+    ui.render_translation(ingest.translate_text(content))
+
+
 @cli.command()
 @click.option("--clear", is_flag=True, help="删除之前 demo 导入的示例卡片")
 def demo(clear: bool) -> None:
