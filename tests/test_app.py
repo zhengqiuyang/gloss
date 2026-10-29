@@ -18,7 +18,7 @@ def test_run_app_without_pyobjc_gives_install_hint(runner_env, monkeypatch):
     with pytest.raises(GlossError) as exc:
         app.run_app()
     assert "pyobjc" in str(exc.value)
-    assert "gloss-cli[app]" in str(exc.value)
+    assert "gloss-cli\\[app]" in str(exc.value)
 
 
 def test_register_hotkey_returns_bool():
