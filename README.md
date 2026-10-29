@@ -59,8 +59,9 @@ for you, and keeps every one of them.
 |---|---|
 | Core CLI — lookup, glossary, edit/rm, translate, review, stats, export, `gloss serve`, `gloss demo` | **Cross-platform** (any Python 3.9+; runtime deps only click/rich/openai) |
 | `gloss paste` (clipboard capture: text + screenshots) | **macOS & Windows** — pbpaste/pasteboard and Win32 clipboard + PowerShell; Linux needs adapters (see `src/gloss/clipboard.py`) |
+| `gloss hotkey` (global-hotkey popup) | **Windows only** — Win32 `RegisterHotKey`, zero deps; pops a frameless browser window with the card. macOS counterpart: `gloss app` |
 | `gloss app` (menu bar + ⌘G popup) | **macOS only** — pyobjc, Carbon hotkey |
-| Linux | Core CLI and `gloss serve` work today; clipboard capture and the native panel need adapters (contributions welcome — see `src/gloss/clipboard.py`) |
+| Linux | Core CLI and `gloss serve` work today; clipboard capture, hotkey popup and the native panel need adapters (contributions welcome — see `src/gloss/clipboard.py`) |
 
 ## Features
 
@@ -119,6 +120,7 @@ gloss demo                        # seed a sample glossary (no API key needed)
 gloss paste                       # gloss whatever is in the clipboard (text or screenshot)
 gloss paste --notify              # same, but the result arrives as a system notification
 gloss serve                       # local web popup + HTTP API, pre-filled from clipboard
+gloss hotkey                      # Windows: global-hotkey popup (Ctrl+Alt+G), card from clipboard
 gloss app                         # menu-bar app: ⌥⌘G popup anywhere + always-on service
 gloss QUIC                        # look up / ingest a term
 gloss RAG -n "读 agent 文档时" -s "https://…"   # record context + source

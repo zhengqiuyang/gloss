@@ -3,9 +3,9 @@
 日常的最佳体验不是敲 `gloss <词>`，而是：**复制 → 一个动作出卡片 → 继续阅读**。
 本页按实现成本从低到高给方案，按需取用。
 
-> 平台备注：`gloss paste` 剪贴板捕获（文字 + 截图）支持 **macOS 和 Windows**；
-> L1 系统通知 / L3 菜单栏应用目前仍为 **macOS**（osascript/Carbon）；
-> `gloss serve`（L2）全平台可用。Windows 热键配方见下方「Windows 方案」。
+> 平台备注：`gloss paste` 剪贴板捕获（文字 + 截图）与 **L3 全局热键弹窗**
+> （macOS `gloss app` ⌥⌘G / Windows `gloss hotkey` Ctrl+Alt+G）双平台可用；
+> L1 系统通知目前仅 **macOS**；`gloss serve`（L2）全平台可用。
 
 ## L3 · 菜单栏应用（体验天花板，推荐）
 
@@ -89,25 +89,34 @@ system-wide hotkey"。设一个热键（如 ⌥Space）呼出一个悬浮半透�
 
    Git Bash 用户照旧：`alias g='gloss'`、`alias gp='gloss paste'`。
 
-### AutoHotkey 全局热键（推荐）
+### 全局热键（gloss hotkey，零依赖，推荐）
 
-装 [AutoHotkey v2](https://www.autohotkey.com/)，存一个 `gloss.ahk` 双击运行
-（或放 shell:startup 开机自启）：
+macOS 有 `gloss app`（⌥⌘G），Windows 的对称能力是 `gloss hotkey`——
+用 Win32 `RegisterHotKey` 注册系统热键（不需要装 AutoHotkey）：
 
-```ahk
-; gloss：Ctrl+Alt+G → 剪贴板收录（通知版），Ctrl+Alt+W → 网页弹窗
-#Requires AutoHotkey v2.0
-^!g::Run 'gloss paste --notify', , 'Hide'
-^!w::Run 'http://127.0.0.1:7789'   ; 前提：gloss serve 已在跑
+```powershell
+gloss hotkey              # 前台运行：Ctrl+Alt+G 呼出弹窗
+gloss hotkey --startup    # 写入开机自启（登录后隐藏常驻）
+gloss hotkey --no-startup # 移除开机自启
 ```
 
-> 别绑 `Win+G`——那是 Xbox Game Bar 的保留键。
+按下热键后：自动确保 `gloss serve` 在跑（没跑就静默拉起），弹出无边框
+窗口，剪贴板里的文字或 `Win+Shift+S` 截图**立即出卡**，`Esc` 关窗回阅读。
+与 macOS 共用同一个配置键，想换组合：
 
-### 无边框弹窗（Chrome --app 的 Windows 版）
+```bash
+gloss config set app.hotkey ctrl+alt+shift+g
+```
+
+> 注意 `app.hotkey` 里的 `cmd`（macOS 的 ⌘）在 Windows 上读作 Win 键，
+> 而 `Win+G` 被 Xbox Game Bar 占用——Windows 用户请用 ctrl/alt/shift 组合；
+> 注册失败时 `gloss hotkey` 会自动回退到 `Ctrl+Alt+G` 并提示。
+
+### 无边框弹窗（Chrome --app 的 Windows 版，热键方案的手动版）
 
 ```powershell
 gloss serve --no-browser
-Start-Process chrome --app=http://127.0.0.1:7789 --window-size=640,720
+Start-Process chrome '-app=http://127.0.0.1:7789' '-window-size=640,720'
 ```
 
 ## Chrome --app 无边框弹窗（L2 的正确打开方式）

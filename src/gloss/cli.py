@@ -178,6 +178,35 @@ def app_cmd(no_hotkey: bool, hidden: bool) -> None:
     run_app(no_hotkey=no_hotkey, show_on_start=not hidden)
 
 
+@cli.command("hotkey")
+@click.option("--startup", "startup_mode", flag_value="install", default=None,
+              help="写入开机自启后退出（登录后热键直接可用）")
+@click.option("--no-startup", "startup_mode", flag_value="remove", default=None,
+              help="移除开机自启后退出")
+def hotkey_cmd(startup_mode: str) -> None:
+    """全局热键弹窗（Windows）：复制 → 热键 → 卡片。热键取配置 app.hotkey。
+
+    \b
+      gloss hotkey              # 前台运行，Ctrl+Alt+G 呼出弹窗
+      gloss hotkey --startup    # 写入开机自启（登录后自动隐藏运行）
+
+    macOS 的对应能力是 gloss app（菜单栏 + ⌥⌘G）。
+    """
+    from . import hotkey
+
+    if startup_mode == "install":
+        path = hotkey.install_startup()
+        ui.console.print(f"[green]✓ 已写入开机自启[/green]（{path}，登录后隐藏运行 gloss hotkey）")
+        return
+    if startup_mode == "remove":
+        if hotkey.remove_startup():
+            ui.console.print("[green]✓ 已移除开机自启[/green]")
+        else:
+            ui.console.print("[dim]本来就没有开机自启。[/dim]")
+        return
+    hotkey.run_hotkey()
+
+
 @cli.command("tr")
 @click.argument("text", nargs=-1)
 def tr(text: Tuple[str, ...]) -> None:

@@ -48,11 +48,12 @@ gloss 做的是同一件事：替你写页边注，并把每一条都留下来�
 |---|---|
 | 核心 CLI——查询/词库/edit/rm/翻译/review/stats/export/`gloss serve`/`gloss demo` | **全平台**（Python 3.9+，运行时依赖仅 click/rich/openai） |
 | `gloss paste`（剪贴板捕获：文字 + 截图） | **macOS & Windows**——pbpaste/剪贴板 与 Win32 剪贴板 + PowerShell；Linux 需适配层（见 `src/gloss/clipboard.py`） |
+| `gloss hotkey`（全局热键弹窗） | **仅 Windows**——Win32 `RegisterHotKey` 零依赖，呼出无边框浏览器窗口出卡；macOS 对应能力是 `gloss app` |
 | `gloss app`（菜单栏 + ⌘G 弹窗） | **仅 macOS**——依赖 pyobjc、Carbon 热键 |
-| Linux | 核心 CLI 与 `gloss serve` 现已可用；剪贴板捕获与原生浮窗需要适配层（欢迎贡献，见 `src/gloss/clipboard.py`） |
+| Linux | 核心 CLI 与 `gloss serve` 现已可用；剪贴板捕获、热键弹窗与原生浮窗需要适配层（欢迎贡献，见 `src/gloss/clipboard.py`） |
 
-> 交互体验（⌘G 热键弹窗、菜单栏应用、剪贴板/截图捕获）在 **macOS** 上开发与验证；
-> Windows 已支持剪贴板/截图捕获（Win+Shift+S → `gloss paste`），热键配方见 `extras/README.md`。
+> 交互体验（⌘G 热键弹窗、菜单栏应用）在 **macOS** 上开发与验证；**Windows** 已支持
+> 剪贴板/截图捕获（Win+Shift+S → `gloss paste`）与全局热键弹窗（`gloss hotkey`）。
 
 ## 功能
 
@@ -103,6 +104,7 @@ gloss demo                        # 导入示例词库（无需 API key）
 gloss paste                       # 直接读剪贴板：文字 → 词条/摘要，截图 → 视觉解析
 gloss paste --notify              # 同上，但结果走系统通知（配全局快捷键用）
 gloss serve                       # 本地网页弹窗 + HTTP API（预填剪贴板，可点词跳查）
+gloss hotkey                      # Windows：全局热键弹窗（Ctrl+Alt+G），剪贴板内容直接出卡
 gloss app                         # 菜单栏应用：⌥⌘G 全局热键弹窗 + 常驻服务
 gloss QUIC                        # 查询/收录一个术语
 gloss RAG -n "读 agent 文档时" -s "https://…"   # 记录语境和来源
