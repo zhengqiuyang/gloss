@@ -128,56 +128,154 @@ _PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>gloss</title>
 <style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
+  :root {
+    color-scheme: light dark;
+    --bg: light-dark(#f5f5f7, #1b1b1e);
+    --surface: light-dark(#ffffff, #26262b);
+    --border: light-dark(#e4e4e9, #37373c);
+    --text: light-dark(#1d1d1f, #f2f2f5);
+    --text2: light-dark(#77777d, #a4a4ab);
+    --text3: light-dark(#3c3c43, #d6d6db);
+    --accent: #0a84ff;
+    --amber: #ff9f0a;
+    --purple: #bf5af2;
+    --green: #30d158;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
   body {
-    margin: 0; padding: 28px 20px 40px;
-    font: 15px/1.65 -apple-system, "PingFang SC", "Segoe UI", sans-serif;
-    background: light-dark(#fafafa, #1c1c1e); color: light-dark(#1d1d1f, #f2f2f7);
-    display: flex; justify-content: center;
+    font: 15px/1.7 -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased;
   }
-  main { width: 100%; max-width: 620px; }
+  .app { max-width: 720px; margin: 0 auto; padding: 16px 16px 20px; }
+
+  .searchbar {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 12px 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    position: sticky; top: 12px; z-index: 10;
+    transition: border-color .16s, box-shadow .16s;
+  }
+  .searchbar:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3.5px rgba(10,132,255,.16), 0 1px 3px rgba(0,0,0,.05);
+  }
+  .searchbar .icon { font-size: 17px; user-select: none; }
   #q {
-    width: 100%; padding: 14px 16px; font-size: 17px;
-    border-radius: 12px; border: 1px solid light-dark(#d2d2d7, #3a3a3c);
-    background: light-dark(#fff, #2c2c2e); color: inherit; outline: none;
+    flex: 1; border: 0; outline: 0; background: transparent; color: inherit;
+    font-size: 16px; font-family: inherit;
   }
-  #q:focus { border-color: #0a84ff; }
-  .hint { color: #ff9f0a; font-size: 13px; margin-top: 8px; min-height: 1em; }
-  .badge { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; margin-bottom: 10px; }
-  .badge.new { background: rgba(10,132,255,.14); color: #0a84ff; }
-  .badge.hit { background: rgba(48,209,88,.16); color: #30d158; }
+  #q::placeholder { color: var(--text2); }
+  kbd {
+    font: 11px ui-monospace, SFMono-Regular, monospace;
+    color: var(--text2);
+    border: 1px solid var(--border); border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 6px; user-select: none;
+  }
+  .hint { color: var(--amber); font-size: 12.5px; margin: 8px 4px 0; min-height: 1.2em; }
+
+  #out { margin-top: 14px; max-height: calc(100vh - 148px); overflow-y: auto;
+         scrollbar-width: thin; }
+  #out::-webkit-scrollbar { width: 8px; }
+  #out::-webkit-scrollbar-thumb { background: rgba(128,128,128,.35); border-radius: 4px; }
+
   .card {
-    margin-top: 20px; padding: 20px 22px; border-radius: 14px;
-    background: light-dark(#fff, #2c2c2e);
-    border: 1px solid light-dark(#e5e5ea, #3a3a3c);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 20px 22px 18px; margin-bottom: 12px;
+    box-shadow: 0 10px 28px rgba(0,0,0,.08);
+    animation: pop .24s cubic-bezier(.2, .9, .3, 1.15);
   }
-  h1 { font-size: 22px; margin: 0 0 2px; }
-  .aka { color: #8e8e93; font-size: 13px; }
-  .oneliner { font-weight: 600; margin: 12px 0 8px; }
-  .detail { white-space: pre-wrap; }
-  .tags { margin-top: 12px; }
-  .tag { display: inline-block; font-size: 12px; color: #bf5af2; background: rgba(191,90,242,.12); border-radius: 6px; padding: 2px 8px; margin-right: 6px; }
-  .rel { margin-top: 14px; border-top: 1px solid light-dark(#e5e5ea, #3a3a3c); padding-top: 12px; }
-  .rel a { cursor: pointer; }
-  .rel .ln { display: block; padding: 2px 0; color: #0a84ff; }
-  .rel .ln small { color: #8e8e93; margin-left: 6px; }
-  .rel .pd { display: block; padding: 2px 0; color: #ff9f0a; }
-  .meta { margin-top: 14px; color: #8e8e93; font-size: 12px; }
-  .kts { margin-top: 14px; }
-  .kt { display: inline-block; cursor: pointer; font-size: 13px; padding: 4px 12px; margin: 0 6px 6px 0; border-radius: 999px; background: rgba(255,159,10,.14); color: #ff9f0a; }
-  .err { margin-top: 20px; padding: 14px 18px; border-radius: 12px; background: rgba(255,69,58,.12); color: #ff453a; white-space: pre-wrap; }
-  .spin { color: #8e8e93; margin-top: 20px; }
-  kbd { font: 12px ui-monospace, monospace; background: light-dark(#e5e5ea, #3a3a3c); border-radius: 4px; padding: 1px 6px; }
-  .foot { color: #8e8e93; font-size: 12px; margin-top: 26px; text-align: center; }
+  @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.985); } }
+
+  .topline { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .badge {
+    font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
+    padding: 3px 11px; border-radius: 999px;
+  }
+  .badge.new { color: var(--accent); background: rgba(10,132,255,.13); }
+  .badge.hit { color: var(--green); background: rgba(48,209,88,.14); }
+  .hits { font-size: 11.5px; color: var(--text2); }
+
+  h1 { font-size: 23px; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; }
+  .aka { color: var(--text2); font-size: 13px; margin-top: 4px; }
+
+  .oneliner {
+    margin: 14px 0 10px; padding: 10px 14px;
+    font-weight: 600; font-size: 15px; line-height: 1.6;
+    border-left: 3px solid var(--accent); border-radius: 8px;
+    background: rgba(10,132,255,.07);
+  }
+  .detail { font-size: 14px; color: var(--text3); white-space: pre-wrap; }
+
+  .tags { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    font-size: 12px; font-weight: 500; color: var(--purple);
+    background: rgba(191,90,242,.1); padding: 3px 10px; border-radius: 999px;
+  }
+
+  .section { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .label {
+    font-size: 11px; font-weight: 700; color: var(--text2);
+    text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px;
+  }
+  .ln, .pd {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 6px 9px; margin: 0 -9px; border-radius: 9px;
+    cursor: pointer; text-decoration: none;
+  }
+  .ln:hover, .pd:hover { background: rgba(10,132,255,.08); }
+  .ln .t { color: var(--accent); font-weight: 600; }
+  .pd .t { color: var(--amber); font-weight: 600; }
+  .ln small, .pd small { color: var(--text2); font-size: 12px; }
+
+  .meta { margin-top: 14px; color: var(--text2); font-size: 11.5px; }
+
+  .kts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+  .kt {
+    display: inline-block; cursor: pointer; font-size: 13px; font-weight: 500;
+    padding: 5px 14px; border-radius: 999px;
+    background: rgba(255,159,10,.12); color: var(--amber);
+    transition: transform .1s ease, background .1s ease;
+  }
+  .kt:hover { transform: scale(1.05); background: rgba(255,159,10,.2); }
+
+  .err {
+    background: rgba(255,69,58,.1); color: #ff453a;
+    border-radius: 14px; padding: 14px 18px; font-size: 14px;
+    white-space: pre-wrap; animation: pop .2s ease;
+  }
+  .spin {
+    color: var(--text2); text-align: center; padding: 22px 0; font-size: 14px;
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: .45; } }
+
+  .empty { text-align: center; color: var(--text2); padding: 48px 0 26px; }
+  .empty .big { font-size: 36px; margin-bottom: 10px; }
+  .empty .slogan { font-size: 14px; color: var(--text3); margin-bottom: 12px; }
+  .empty .tips { font-size: 12.5px; line-height: 2.1; }
 </style>
 </head>
 <body>
-<main>
-  <input id="q" type="text" placeholder="丢一个词进来，回车查询 / 收录" autocomplete="off" spellcheck="false" autofocus>
+<div class="app">
+  <div class="searchbar">
+    <span class="icon">📖</span>
+    <input id="q" type="text" placeholder="丢一个词进来，回车查询 / 收录" autocomplete="off" spellcheck="false" autofocus>
+    <kbd>↵</kbd>
+  </div>
   <div class="hint" id="hint"></div>
-  <div id="out"><div class="foot">输入词或一段话，回车。<kbd>Esc</kbd> 关窗 · 点击任何关联词可继续查询</div></div>
-</main>
+  <div id="out">
+    <div class="empty">
+      <div class="big">📖</div>
+      <div class="slogan">查一次，永久拥有。</div>
+      <div class="tips">复制过的词已自动填入 · <kbd>Esc</kbd> 关窗 · 点击任何关联词继续查</div>
+    </div>
+  </div>
+</div>
 <script>
 const PREFILL = __PREFILL__;
 const HINT = __HINT__;
@@ -201,54 +299,72 @@ function render(d) {
   out.textContent = "";
   if (d.error) { out.appendChild(el("div", "err", d.error)); return; }
   const c = d.card;
+
   const card = el("div", "card");
-  card.appendChild(el("span", "badge " + (d.cache_hit ? "hit" : "new"),
-    d.cache_hit ? "⚡ 缓存命中 · 0 tokens" : "✨ 已收录新卡片"));
+  const top = el("div", "topline");
+  const badgeText = d.cache_hit ? "⚡ 缓存命中 · 0 token"
+                  : (c.type === "snippet" ? "✨ 已收藏摘要" : "✨ 已收录新术语");
+  top.appendChild(el("span", "badge " + (d.cache_hit ? "hit" : "new"), badgeText));
+  if (d.cache_hit && c.hits > 0) top.appendChild(el("span", "hits", "第 " + c.hits + " 次查询"));
+  card.appendChild(top);
+
   card.appendChild(el("h1", null, c.term));
-  if (c.aliases && c.aliases.length) card.appendChild(el("div", "aka", "aka " + c.aliases.join(" / ")));
+  if (c.aliases && c.aliases.length)
+    card.appendChild(el("div", "aka", "又称 " + c.aliases.join(" / ")));
   if (c.one_liner) card.appendChild(el("div", "oneliner", c.one_liner));
   if (c.detail) card.appendChild(el("div", "detail", c.detail));
+
   if (c.tags && c.tags.length) {
     const t = el("div", "tags");
     c.tags.forEach(x => t.appendChild(el("span", "tag", "#" + x)));
     card.appendChild(t);
   }
+
   if ((c.linked && c.linked.length) || (c.pending && c.pending.length)) {
-    const r = el("div", "rel");
+    const sec = el("div", "section");
+    sec.appendChild(el("div", "label", "关联概念"));
     (c.linked || []).forEach(x => {
-      const a = el("a", "ln", "🔗 " + x.term);
-      const s = el("small", null, "已关联" + (x.one_liner ? " · " + x.one_liner : ""));
-      a.appendChild(s);
+      const a = el("a", "ln");
+      a.appendChild(el("span", "t", "🔗 " + x.term));
+      if (x.one_liner) a.appendChild(el("small", null, x.one_liner));
       a.onclick = () => glossNow(x.term);
-      r.appendChild(a);
+      sec.appendChild(a);
     });
     (c.pending || []).forEach(x => {
-      const a = el("a", "pd", "· " + x + "（未收录，点一下就查）");
+      const a = el("a", "pd");
+      a.appendChild(el("span", "t", "· " + x));
+      a.appendChild(el("small", null, "未收录，点一下就查"));
       a.onclick = () => glossNow(x);
-      r.appendChild(a);
+      sec.appendChild(a);
     });
-    card.appendChild(r);
+    card.appendChild(sec);
   }
-  if (c.source || c.context) {
-    const bits = [];
-    if (c.created_at) bits.push("首次记录 " + c.created_at.slice(0, 10));
-    if (c.source) bits.push("来源 " + c.source);
-    if (c.context) bits.push("语境 " + c.context);
-    card.appendChild(el("div", "meta", bits.join(" · ")));
-  }
+
+  const bits = [];
+  if (c.created_at) bits.push("首次记录 " + c.created_at.slice(0, 10));
+  if (c.source) bits.push("来源 " + c.source);
+  if (c.context) bits.push("语境 " + c.context);
+  if (bits.length) card.appendChild(el("div", "meta", bits.join(" · ")));
+
   out.appendChild(card);
+
   if (d.key_terms && d.key_terms.length) {
     const box = el("div", "card");
-    box.appendChild(el("div", "aka", "值得单独收录的词（点一下就查）："));
-    const wrap = el("div", "kts");
+    const sec = el("div", "section");
+    sec.style.borderTop = "none";
+    sec.style.paddingTop = "0";
+    sec.appendChild(el("div", "label", "值得单独收录的词"));
+    const kts = el("div", "kts");
     d.key_terms.forEach(x => {
       const b = el("span", "kt", x);
       b.onclick = () => glossNow(x);
-      wrap.appendChild(b);
+      kts.appendChild(b);
     });
-    box.appendChild(wrap);
+    sec.appendChild(kts);
+    box.appendChild(sec);
     out.appendChild(box);
   }
+  out.scrollTop = 0;
 }
 
 async function lookup() {

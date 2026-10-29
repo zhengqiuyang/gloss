@@ -101,14 +101,18 @@ def _build_delegate_class():
             item.button().setTitle_("📖")
             menu = A.NSMenu.alloc().init()
 
-            def add(title, action, key=""):
+            def add(title, action, key="", mods=None):
                 it = A.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                     title, action, key
                 )
+                if mods is not None:
+                    it.setKeyEquivalentModifierMask_(mods)
                 it.setTarget_(self)
                 menu.addItem_(it)
 
-            add("显示弹窗", "mShow:", "g")
+            # 显示真实生效的全局热键 ⌥⌘G（Carbon 注册的那个），而不是误导性的 ⌘G
+            cmd_opt = A.NSCommandKeyMask | A.NSAlternateKeyMask
+            add("显示弹窗", "mShow:", "g", cmd_opt)
             add("重新载入", "mReload:", "r")
             menu.addItem_(A.NSMenuItem.separatorItem())
             menu.addItem_(
@@ -126,7 +130,7 @@ def _build_delegate_class():
                 | A.NSWindowStyleMaskFullSizeContentView
             )
             panel = Panel.alloc().initWithContentRect_styleMask_backing_defer_(
-                F.NSMakeRect(0, 0, 620, 540), mask, A.NSBackingStoreBuffered, False
+                F.NSMakeRect(0, 0, 660, 580), mask, A.NSBackingStoreBuffered, False
             )
             panel.setTitlebarAppearsTransparent_(True)
             panel.setTitleVisibility_(A.NSWindowTitleHidden)
@@ -145,7 +149,7 @@ def _build_delegate_class():
 
             conf = WebKit.WKWebViewConfiguration.alloc().init()
             webview = WebKit.WKWebView.alloc().initWithFrame_configuration_(
-                F.NSMakeRect(0, 0, 620, 540), conf
+                F.NSMakeRect(0, 0, 660, 580), conf
             )
             webview.setUIDelegate_(self)
             webview.setAutoresizingMask_(2 | 16)  # grow with parent
