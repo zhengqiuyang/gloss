@@ -1,3 +1,5 @@
+<div align="center">
+
 # gloss
 
 **Learn a term once, own it forever.**
@@ -9,6 +11,18 @@ English | [简体中文](README.zh-CN.md)
 [![CI](https://github.com/zhengqiuyang/gloss/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengqiuyang/gloss/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
+[![Stars](https://img.shields.io/github/stars/zhengqiuyang/gloss)](https://github.com/zhengqiuyang/gloss/stargazers)
+[![Last commit](https://img.shields.io/github/last-commit/zhengqiuyang/gloss/main)](https://github.com/zhengqiuyang/gloss/commits)
+
+**Install** — one command, no API key needed:
+
+```bash
+uv tool install git+https://github.com/zhengqiuyang/gloss
+```
+
+[How it works](#how-it-works) · [Quickstart](#quickstart) · [Zero typing](#zero-typing) · [Platform support](#platform-support) · [Roadmap](#roadmap) · [Privacy](#privacy)
+
+</div>
 
 ## You pay for the same word three times
 
@@ -75,6 +89,7 @@ on your own machine, every note kept.
 
 It writes the margin notes for you, and keeps every one of them.
 
+<a id="how-it-works"></a>
 ## How "once" becomes "forever"
 
 1. **Lookup is caching** — every term is checked against local SQLite first;
@@ -86,6 +101,17 @@ It writes the margin notes for you, and keeps every one of them.
    own, they're linked automatically; unknown names are parked and back-filled
    into a two-way link when you gloss them later.
 
+```mermaid
+flowchart LR
+    A["Copy a term"] --> B{"Already owned?<br/>local SQLite"}
+    B -- "hit" --> C["⚡ 0 tokens card"]
+    B -- "miss" --> D["LLM, once ever"]
+    D --> E["✨ structured card"]
+    E --> F["Auto-linked concepts"]
+    C --> G["review · stats · export"]
+    F --> G
+```
+
 <p align="center">
   <img src="docs/img/gloss-card.png" alt="gloss web card: KV Cache ingested, auto-linked to Pre-training / Post-training / Pooling / Dimensionality reduction" width="720">
 </p>
@@ -93,7 +119,12 @@ It writes the margin notes for you, and keeps every one of them.
 Every lookup tells you whether it was a `⚡ 0 tokens` cache hit or a fresh
 `✨ card` — and `gloss stats` shows the saved tokens compounding.
 
+<a id="quickstart"></a>
 ## 30 seconds (no API key needed)
+
+> [!TIP]
+> `gloss demo` imports 9 interlinked sample cards and every feature works
+> offline — you can explore the full product before touching any API key.
 
 ```bash
 uv tool install git+https://github.com/zhengqiuyang/gloss
@@ -117,6 +148,7 @@ switch. Other options (explanation language, detail length, vision model,
 hotkey, port) — see `gloss config show`. Config lives in
 `~/.gloss/config.toml`; the library is `gloss.db` next to it.
 
+<a id="zero-typing"></a>
 ## Zero typing: copy, then one key
 
 Day-to-day usage isn't typing commands — it's **copy → one action → back to
@@ -131,6 +163,7 @@ reading**:
 Hotkey, Raycast, Shortcuts and AutoHotkey recipes live in
 [extras/README.md](extras/README.md).
 
+<a id="platform-support"></a>
 ## Platform support
 
 | Layer | Where it runs |
@@ -140,6 +173,7 @@ Hotkey, Raycast, Shortcuts and AutoHotkey recipes live in
 | `gloss hotkey` (global-hotkey popup + tray) | **Windows only** — frameless WebView2 card; the macOS counterpart is `gloss app` |
 | `gloss app` (menu bar + ⌘G popup) | **macOS only** — pyobjc, Carbon hotkey |
 
+<a id="roadmap"></a>
 ## Roadmap
 
 - [x] Zero-typing capture: `gloss paste` + global hotkeys (⌘G on macOS, Ctrl+G on Windows)
@@ -151,11 +185,13 @@ Hotkey, Raycast, Shortcuts and AutoHotkey recipes live in
 - [ ] WeChat/Telegram bot (built on `gloss serve`'s API)
 - [ ] Multi-machine sync
 
+<a id="privacy"></a>
 ## Privacy
 
-Your glossary is a local SQLite file. Only the term you look up (plus your
-existing term list, used for linking) is sent to the LLM provider you
-configure. No telemetry, nothing else leaves your machine.
+> [!IMPORTANT]
+> Your glossary is a local SQLite file. Only the term you look up (plus your
+> existing term list, used for linking) is sent to the LLM provider you
+> configure. No telemetry, nothing else leaves your machine.
 
 ## Contributing
 

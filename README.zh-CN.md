@@ -1,3 +1,5 @@
+<div align="center">
+
 # gloss
 
 **查一次，永久拥有。**
@@ -9,6 +11,18 @@
 [![CI](https://github.com/zhengqiuyang/gloss/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengqiuyang/gloss/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
+[![Stars](https://img.shields.io/github/stars/zhengqiuyang/gloss)](https://github.com/zhengqiuyang/gloss/stargazers)
+[![Last commit](https://img.shields.io/github/last-commit/zhengqiuyang/gloss/main)](https://github.com/zhengqiuyang/gloss/commits)
+
+**安装** — 一条命令，无需 API key：
+
+```bash
+uv tool install git+https://github.com/zhengqiuyang/gloss
+```
+
+[工作原理](#how-it-works) · [快速上手](#quickstart) · [零打字](#zero-typing) · [平台支持](#platform-support) · [Roadmap](#roadmap) · [隐私](#privacy)
+
+</div>
 
 ## 同一个词，你付了三次钱
 
@@ -64,6 +78,7 @@ gloss 做的是同一件事，而且刻意保留了页边注的三个好品质�
 
 替你写页边注，并把每一条都留下来。
 
+<a id="how-it-works"></a>
 ## 它怎么做到"查一次，永久拥有"
 
 1. **查询即缓存** — 每个词先查本地 SQLite，未命中才调一次模型，终身一次。
@@ -73,6 +88,17 @@ gloss 做的是同一件事，而且刻意保留了页边注的三个好品质�
 3. **概念连着概念** — 新卡片提到你已收录的词，自动建链；没收录的先挂起，
    将来 gloss 它时自动回填成双向链接。
 
+```mermaid
+flowchart LR
+    A["复制一个词"] --> B{"已经收录？<br/>本地 SQLite"}
+    B -- "命中" --> C["⚡ 0 tokens 卡片"]
+    B -- "未命中" --> D["调模型，终身一次"]
+    D --> E["✨ 结构化卡片"]
+    E --> F["自动关联概念"]
+    C --> G["review · stats · export"]
+    F --> G
+```
+
 <p align="center">
   <img src="docs/img/gloss-card.png" alt="gloss 网页卡片：KV Cache 已收录，预训练/后训练/降维/池化 自动关联" width="720">
 </p>
@@ -80,7 +106,12 @@ gloss 做的是同一件事，而且刻意保留了页边注的三个好品质�
 每次查询都会告诉你是 `⚡ 0 tokens` 的缓存命中，还是 `✨ 已收录` 的新卡——
 `gloss stats` 里能看着省下的 token 复利增长。
 
+<a id="quickstart"></a>
 ## 30 秒上手（不需要 API key）
+
+> [!TIP]
+> `gloss demo` 导入 9 张互相关联的示例卡，全部功能离线可用——不配 key 也能
+> 把产品摸个遍。
 
 ```bash
 uv tool install git+https://github.com/zhengqiuyang/gloss
@@ -103,6 +134,7 @@ DeepSeek、GLM、Ollama（本地、免费）……只要是 OpenAI 兼容接口�
 （解释语言、详情长度、视觉模型、热键、端口）用 `gloss config show` 查看。
 配置在 `~/.gloss/config.toml`，词库是同目录的 `gloss.db`。
 
+<a id="zero-typing"></a>
 ## 零打字：复制即收录
 
 日常的最佳用法不是敲命令，是**复制 → 一个动作 → 继续阅读**：
@@ -115,6 +147,7 @@ DeepSeek、GLM、Ollama（本地、免费）……只要是 OpenAI 兼容接口�
 
 热键、Raycast、快捷指令、AutoHotkey 等配方见 [extras/README.md](extras/README.md)。
 
+<a id="platform-support"></a>
 ## 平台支持
 
 | 层 | 可运行范围 |
@@ -124,6 +157,7 @@ DeepSeek、GLM、Ollama（本地、免费）……只要是 OpenAI 兼容接口�
 | `gloss hotkey`（全局热键弹窗 + 托盘） | **仅 Windows**——WebView2 无边框卡片；macOS 对应能力是 `gloss app` |
 | `gloss app`（菜单栏 + ⌘G 浮窗） | **仅 macOS**——依赖 pyobjc、Carbon 热键 |
 
+<a id="roadmap"></a>
 ## Roadmap
 
 - [x] 零打字捕获：`gloss paste` + 全局热键（macOS ⌘G / Windows Ctrl+G）
@@ -135,10 +169,12 @@ DeepSeek、GLM、Ollama（本地、免费）……只要是 OpenAI 兼容接口�
 - [ ] 微信/Telegram bot（基于 `gloss serve` 的 API）
 - [ ] 多机词库同步
 
+<a id="privacy"></a>
 ## 隐私
 
-词库就是本地一个 SQLite 文件。只有你查询的词（加上用于关联的已有词表）会发给
-你配置的 LLM 服务商，没有遥测，没有其他外发。
+> [!IMPORTANT]
+> 词库就是本地一个 SQLite 文件。只有你查询的词（加上用于关联的已有词表）会发给你
+> 配置的 LLM 服务商，没有遥测，没有其他外发。
 
 ## 参与
 
