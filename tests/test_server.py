@@ -242,3 +242,27 @@ def test_api_demo_seeds_offline_cards(server_url, home):
 
     status, _, data = _request(server_url, "POST", {}, path="/api/demo")
     assert json.loads(data)["skipped"] >= 9  # 重复导入不重复建卡
+
+
+def test_import_demo_releases_busy_before_opening_card(server_url):
+    """P2 回归：importDemo 里 busy 释放必须先于 glossNow，否则卡片永远打不开。"""
+    _, _, data = _request(server_url)
+    js = data.decode("utf-8")
+    body = js[js.index("async function importDemo"):js.index("if (NO_KEY)")]
+    assert body.index("busy = false;") < body.index('glossNow("RAG")')
+
+
+def test_config_post_can_clear_vision_model(server_url, home):
+    from gloss.config import load_config, set_config_value
+
+    set_config_value("llm.vision_model", "gpt-4o")
+    status, _, data = _request(server_url, "POST", {"vision_model": ""}, path="/api/config")
+    assert status == 200
+    assert load_config()["llm"]["vision_model"] == ""
+
+
+def test_page_settings_ui_prefills_and_can_clear(server_url):
+    _, _, data = _request(server_url)
+    js = data.decode("utf-8")
+    assert "dataset.pristine" in js      # 预填真实值，清空可被识别为修改
+    assert "payload[k] = now;" in js     # 改动（含清空）才提交

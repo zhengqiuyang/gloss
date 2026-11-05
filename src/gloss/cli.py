@@ -218,8 +218,15 @@ def app_cmd(no_hotkey: bool, hidden: bool, foreground: bool,
         return
     if startup_mode == "remove":
         _require_darwin_app()
+        pid_before = appctl.running_instance()
         if appctl.remove_startup():
-            ui.console.print("[green]✓ 已移除登录自启[/green]（当前实例不受影响，继续运行）")
+            if pid_before is not None and not appctl.is_running(pid_before):
+                ui.console.print(
+                    "[yellow]✓ 已移除登录自启[/yellow]"
+                    "（该实例由 launchd 托管，随服务卸载停止。重新启动: gloss app）"
+                )
+            else:
+                ui.console.print("[green]✓ 已移除登录自启[/green]（当前实例继续运行）")
         else:
             ui.console.print("[dim]本来就没有登录自启。[/dim]")
         return
@@ -233,7 +240,7 @@ def app_cmd(no_hotkey: bool, hidden: bool, foreground: bool,
 
     _require_darwin_app()
     try:
-        pid = appctl.spawn_background(hidden=hidden)
+        pid = appctl.spawn_background(hidden=hidden, no_hotkey=no_hotkey)
     except GlossError as exc:
         if "已在运行" in str(exc):
             ui.console.print(f"[dim]{exc}[/dim]")
@@ -257,7 +264,15 @@ def _print_app_status(st: dict) -> None:
     from .config import load_config
 
     running = f"[green]运行中[/green] (pid {st['pid']})" if st["running"] else "[dim]未运行[/dim]"
-    autostart = "已启用（登录后隐藏启动）" if st["startup"] else "未启用"
+    if not st["startup"]:
+        autostart = "未启用"
+    else:
+        loaded_txt = {
+            True: "已加载",
+            False: "已写入但未加载（用 launchctl print 查原因）",
+            None: "加载状态未知（仅 macOS 可查询）",
+        }[st["startup_loaded"]]
+        autostart = f"已启用 · {loaded_txt}"
     spec = load_config()["app"]["hotkey"]
     ui.console.print(
         f"运行状态: {running}\n"

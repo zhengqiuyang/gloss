@@ -87,13 +87,19 @@ def lookup_or_ingest(
 def _validate_payload(data: Any, kind: str) -> None:
     """Reject model payloads that would poison the glossary.
 
-    JSON that parses is not enough: an empty object, wrong types, or missing
-    core fields must not become an empty card. Called at the single gate
-    before anything is written, so every LLM client (real or test fake) is
-    covered.
+    JSON that parses is not enough: an empty object, non-string core fields
+    (a coerced dict/number would ship as card text), or missing content must
+    not become a card. Called at the single gate before anything is written,
+    so every LLM client (real or test fake) is covered.
     """
     if not isinstance(data, dict):
         raise GlossError("模型返回的不是有效的卡片数据，没有收录。")
+    for field in ("term", "title", "one_liner", "detail"):
+        value = data.get(field)
+        if value is not None and not isinstance(value, str):
+            raise GlossError(
+                f"模型返回的 {field} 不是字符串（而是 {type(value).__name__}），没有收录。"
+            )
     one_liner = str(data.get("one_liner") or "").strip()
     detail = str(data.get("detail") or "").strip()
     if not one_liner or not detail:

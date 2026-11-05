@@ -194,6 +194,21 @@ def test_non_dict_payload_is_rejected(home, fake_llm):
     assert db.get_card("X") is None
 
 
+def test_non_string_core_fields_are_rejected(home, fake_llm):
+    """str() 强转会让字典/列表混进卡片正文——必须先验类型。"""
+    fake_llm.term_queue = [({"term": "X", "one_liner": {"text": "y"}, "detail": "z"}, 10)]
+    with pytest.raises(GlossError):
+        ingest.lookup_or_ingest("X")
+    assert db.get_card("X") is None
+
+
+def test_numeric_term_is_rejected(home, fake_llm):
+    fake_llm.term_queue = [({"term": 123, "one_liner": "a", "detail": "b"}, 10)]
+    with pytest.raises(GlossError):
+        ingest.lookup_or_ingest("X")
+    assert db.get_card("X") is None
+
+
 def test_snippet_payload_without_title_is_rejected(home, fake_llm):
     fake_llm.snippet_queue = [({"one_liner": "y", "detail": "z"}, 10)]
     with pytest.raises(GlossError):

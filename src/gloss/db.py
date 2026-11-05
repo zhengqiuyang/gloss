@@ -101,7 +101,51 @@ def connect() -> sqlite3.Connection:
         _fts_enabled = True
     except sqlite3.OperationalError:
         _fts_enabled = False
+    _migrate_mentions_model(_conn)
     return _conn
+
+
+def _migrate_mentions_model(conn: sqlite3.Connection) -> None:
+    """One-time upgrade for glossaries created by older builds.
+
+    Old builds consumed resolved names off related_names, so links existed
+    without their declaring mentions. The replace/refresh pruner relies on
+    those declarations and would drop still-meaningful old links. Restore
+    each link's declaration from the link itself, then stamp the marker.
+    """
+    row = conn.execute(
+        "SELECT value FROM meta WHERE key = 'mentions_model'"
+    ).fetchone()
+    if row is not None:
+        return  # already on the mention-list model
+    for link in conn.execute("SELECT card_a, card_b FROM links").fetchall():
+        a = _card_or_none(conn, link["card_a"])
+        b = _card_or_none(conn, link["card_b"])
+        if a is None or b is None:
+            continue
+        if not _mentions(a, b.id):
+            a.related_names = a.related_names + [b.term]
+            update_card(a)
+        if not _mentions(b, a.id):
+            b.related_names = b.related_names + [a.term]
+            update_card(b)
+    conn.execute(
+        "INSERT INTO meta (key, value) VALUES ('mentions_model', '2')"
+    )
+    conn.commit()
+
+
+def _card_or_none(conn: sqlite3.Connection, card_id: int) -> Optional[Card]:
+    row = conn.execute("SELECT * FROM cards WHERE id = ?", (card_id,)).fetchone()
+    return Card.from_row(row) if row else None
+
+
+def _mentions(card: Card, other_id: int) -> bool:
+    """True when any of card's related_names resolves to the other card."""
+    return any(
+        (target := get_card(name)) is not None and target.id == other_id
+        for name in card.related_names
+    )
 
 
 def close() -> None:
@@ -368,14 +412,15 @@ def pending_names(card: Card) -> List[str]:
 def backfill_links(card: Card) -> List[Card]:
     """Materialize links from cards whose related_names mention this card.
 
-    Mentions match the card's term OR any of its aliases (normalized), so a
-    pending "检索增强生成" links up with the card named "RAG" that carries
-    that alias — even when the alias was added after the mention. The
-    mention itself stays in the other card's list; it simply resolves from
-    now on (see pending_names).
+    Resolution-based on purpose: a mention counts only when get_card(name)
+    resolves to THIS card — the same lookup users hit. Norm-level matching
+    would wrongly link a mention to whichever later card re-declares a
+    conflicting alias, while the alias index keeps resolving to the original
+    owner. So a pending "检索增强生成" links up with the card that actually
+    carries that alias; a duplicate alias holder gets nothing. The mention
+    itself stays in the other card's list (see pending_names).
     """
     newly_linked: List[Card] = []
-    my_norms = {norm_term(n) for n in card.all_names if norm_term(n)}
     for row in connect().execute(
         "SELECT id FROM cards WHERE id != ? AND related_names != '[]'",
         (card.id,),
@@ -383,9 +428,12 @@ def backfill_links(card: Card) -> List[Card]:
         other = Card.from_row(connect().execute(
             "SELECT * FROM cards WHERE id = ?", (row["id"],)
         ).fetchone())
-        if any(norm_term(n) in my_norms for n in other.related_names):
-            if add_link(card.id, other.id):
-                newly_linked.append(other)
+        mentions_me = any(
+            (target := get_card(name)) is not None and target.id == card.id
+            for name in other.related_names
+        )
+        if mentions_me and add_link(card.id, other.id):
+            newly_linked.append(other)
     return newly_linked
 
 

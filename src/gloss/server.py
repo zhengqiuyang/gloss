@@ -714,19 +714,21 @@ async function importDemo() {
   busy = true;
   out.textContent = "";
   out.appendChild(el("div", "spin", "导入示例中…"));
+  let seeded = null;
   try {
     const r = await fetch("/api/demo", { method: "POST" });
-    const d = await r.json();
-    if (d.error) { render({ error: d.error }); return; }
-    hintEl.textContent = "已导入 " + d.added + " 张示例卡"
-      + (d.skipped ? "（跳过 " + d.skipped + " 张你已有的）" : "")
+    seeded = await r.json();
+    if (seeded.error) { render({ error: seeded.error }); return; }
+    hintEl.textContent = "已导入 " + seeded.added + " 张示例卡"
+      + (seeded.skipped ? "（跳过 " + seeded.skipped + " 张你已有的）" : "")
       + "。输入一个词试试，或点下面这张卡里的关联词。";
-    glossNow("RAG");  // 渲染真实导入的 RAG 卡（本地命中，0 token）
   } catch (e) {
     render({ error: "请求失败: " + e });
+    return;
   } finally {
-    busy = false;
+    busy = false;  // 先释放请求锁，后面的 glossNow 才能真正发起查询
   }
+  glossNow("RAG");  // 渲染真实导入的 RAG 卡（本地命中，0 token）
 }
 
 if (NO_KEY) {
@@ -756,12 +758,15 @@ async function toggleSettings() {
   }
 }
 
-function fieldRow(key, label, placeholder) {
+function fieldRow(key, label, current, placeholder) {
   const row = el("div", "frow");
   row.appendChild(el("label", null, label));
   const input = document.createElement("input");
   input.type = key === "api_key" ? "password" : "text";
   input.id = "set-" + key;
+  // 预填真实值：改动（包括清空）才会提交；API key 例外，留空 = 不改动
+  input.value = key === "api_key" ? "" : (current || "");
+  input.dataset.pristine = current || "";
   input.placeholder = placeholder || "";
   input.autocomplete = "off";
   input.spellcheck = false;
@@ -776,8 +781,8 @@ async function loadSettings() {
     sbody.textContent = "";
     sbody.appendChild(fieldRow("base_url", "服务地址", d.base_url));
     sbody.appendChild(fieldRow("model", "文字模型", d.model));
-    sbody.appendChild(fieldRow("vision_model", "视觉模型", d.vision_model || "（留空则用文字模型）"));
-    sbody.appendChild(fieldRow("api_key", "API key", d.api_key || "sk-…（已保存的会打码）"));
+    sbody.appendChild(fieldRow("vision_model", "视觉模型", d.vision_model, "留空则与文字模型共用"));
+    sbody.appendChild(fieldRow("api_key", "API key", "", d.api_key || "sk-…（已保存的会打码）"));
     sbody.appendChild(fieldRow("hotkey", "全局热键", d.hotkey));
     sbody.appendChild(fieldRow("language", "解释语言", d.language));
     const autoRow = el("div", "frow");
@@ -796,12 +801,18 @@ async function loadSettings() {
 
 document.getElementById("ssave").addEventListener("click", async () => {
   const payload = { auto_lookup: document.getElementById("set-auto_lookup").checked };
+  let blocked = "";
   ["base_url", "model", "vision_model", "hotkey", "language"].forEach(k => {
-    const v = document.getElementById("set-" + k).value.trim();
-    if (v) payload[k] = v;
+    const input = document.getElementById("set-" + k);
+    const now = input.value.trim();
+    const before = (input.dataset.pristine || "").trim();
+    if (now === before) return;  // 没改就不提交
+    if (!now && (k === "base_url" || k === "model")) blocked = "服务地址和文字模型不能清空";
+    payload[k] = now;            // 改过就提交——清空也是一次修改
   });
+  if (blocked) { smsg.textContent = "✗ " + blocked; return; }
   const key = document.getElementById("set-api_key").value.trim();
-  if (key) payload.api_key = key;  // 留空 = 不改动已保存的 key
+  if (key) payload.api_key = key;  // API key 留空 = 不改动已保存的
   try {
     const d = await (await fetch("/api/config", {
       method: "POST",

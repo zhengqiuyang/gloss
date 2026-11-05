@@ -93,6 +93,46 @@ def test_backfill_matches_pending_alias_of_later_card(home):
     assert db.pending_names(db.get_card("阅读笔记")) == []  # 提及保留，但已解析
 
 
+def test_backfill_skips_conflicting_alias_holder(home):
+    """P1 回归：别名 norm 被 X 占用后，Y 重复声明同一别名时，查询仍解析到 X，
+    补链也必须只认解析结果——Y 不得通过补链抢走 X 的关联。"""
+    w = make_card("W卡片", related_names=["shared"])
+    db.resolve_related(w)  # shared 还没有归属 → 挂起
+    x = make_card("X卡片", aliases=["shared"])
+    newly_x = db.backfill_links(x)
+    assert [c.term for c in newly_x] == ["W卡片"]  # 真正的归属者补链成功
+    assert db.has_link(w.id, x.id)
+
+    y = make_card("Y卡片", aliases=["shared"])  # 重复声明（alias_index 仍指向 X）
+    assert db.get_card("shared").id == x.id
+    newly_y = db.backfill_links(y)
+    assert newly_y == []
+    assert not db.has_link(w.id, y.id)
+
+
+def test_upgrade_from_consumed_mentions_keeps_links(home):
+    """P2 回归：旧版会把已解析的 related_names 消费掉，链接脱离声明存在。
+    迁移必须把声明补回来，替换/刷新的清理才不会误删旧关系。"""
+    rag = make_card("RAG")
+    emb = make_card("Embedding")
+    db.add_link(rag.id, emb.id)
+    # 模拟旧版存储形态：链接存在，但双方的提及声明都已被旧版本消费
+    conn = db.connect()
+    conn.execute("DELETE FROM meta WHERE key = 'mentions_model'")
+    conn.execute(
+        "UPDATE cards SET related_names = '[]' WHERE id IN (?, ?)", (rag.id, emb.id)
+    )
+    conn.commit()
+    db.close()  # 断开缓存连接 → 下次访问触发迁移
+
+    assert db.get_card("RAG").related_names == ["Embedding"]
+    assert db.get_card("Embedding").related_names == ["RAG"]
+    rag2 = db.get_card("RAG")
+    old = {c.id for c in db.neighbors(rag2.id)}
+    db.prune_stale_links(rag2, old)  # 替换/刷新场景的清理
+    assert db.has_link(rag.id, emb.id)  # 旧关系因声明恢复而保住
+
+
 def test_prune_stale_links_drops_links_neither_side_mentions(home):
     a = make_card("RAG")
     b = make_card("Embedding")

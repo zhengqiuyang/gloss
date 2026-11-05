@@ -85,21 +85,30 @@ def _carbon_to_ns_mods(carbon_mods: int) -> int:
     return ns
 
 
+_ACTIVE_LOCK = None  # the process-lifetime single-instance mutex, if we hold it
+
+
 def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
     """Block forever running the menu-bar app; Ctrl+C or menu -> 退出 stops it."""
+    global _ACTIVE_LOCK
     from . import appctl
 
-    existing = appctl.running_instance()
-    if existing is not None:
+    lock = appctl.InstanceLock()
+    if not lock.acquire():
+        holder = appctl.read_pid()
         raise GlossError(
-            f"gloss app 已经在运行 (pid {existing})，不重复创建第二个实例。"
+            "gloss app 已经在运行（单实例锁被占用"
+            + (f"，pid {holder}" if holder else "")
+            + "），不重复创建第二个实例。"
             "查看状态: gloss app --status · 停止: gloss app --stop"
         )
+    _ACTIVE_LOCK = lock
     try:
         import AppKit  # noqa: F401
         import Foundation  # noqa: F401
         import WebKit  # noqa: F401
     except ImportError as exc:
+        _release_app_lock()
         raise GlossError(
             "gloss app 需要 macOS 原生绑定（pyobjc）：\n"
             "  uv tool install --reinstall -e '.[app]'   # 从源码目录\n"
@@ -112,8 +121,8 @@ def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
     from .server import start_server
     from .ui import console
 
-    appctl.write_pid(os.getpid())
-    atexit.register(appctl.remove_pid)
+    appctl.write_pid(os.getpid())  # diagnostics; the lock is the real mutex
+    atexit.register(_release_app_lock)
     signal.signal(signal.SIGTERM, _sigterm_stop)
 
     server = start_server(0)  # ephemeral port: never clashes with `gloss serve`
@@ -129,11 +138,17 @@ def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
     _run_gui(port=port, no_hotkey=no_hotkey, show_on_start=show_on_start)
 
 
-def _sigterm_stop(signum, frame) -> None:
-    """`gloss app --stop` lands here: release the pid file and die quietly."""
+def _release_app_lock() -> None:
     from . import appctl
 
+    if _ACTIVE_LOCK is not None:
+        _ACTIVE_LOCK.release()
     appctl.remove_pid()
+
+
+def _sigterm_stop(signum, frame) -> None:
+    """`gloss app --stop` lands here: release the lock + pid file, die quietly."""
+    _release_app_lock()
     os._exit(0)
 
 
@@ -409,10 +424,10 @@ def _build_delegate_class():
 
         def applicationWillTerminate_(self, notification) -> None:
             # NSApp.terminate() exits via native code, so Python's atexit may
-            # not run — release the pid file here instead.
-            from . import appctl
+            # not run — release the lock and pid file here instead.
+            from gloss.app import _release_app_lock
 
-            appctl.remove_pid()
+            _release_app_lock()
 
     return Delegate
 
