@@ -115,3 +115,57 @@ def test_missing_key_error_is_friendly_and_unwrapped(home):
     assert "还没有配置 API key" in message
     assert "调用模型失败" not in message
     assert "base_url" in message  # 非 OpenAI 用户还需要换地址和模型
+
+
+# -- response_format 兼容重试：两次调用都要有统一的友好包装 --------------------
+
+
+class _FakeCompletions:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        step = self.responses.pop(0)
+        if isinstance(step, Exception):
+            raise step
+        msg = type("M", (), {"content": step})()
+        resp = type("R", (), {})()
+        resp.choices = [type("C", (), {"message": msg})()]
+        resp.usage = None
+        return resp
+
+
+def _llm_with_client(responses):
+    llm = _llm()
+    shell = type("Client", (), {})()
+    shell.chat = type("Chat", (), {})()
+    shell.chat.completions = _FakeCompletions(responses)
+    llm._client = shell
+    return llm
+
+
+def test_compat_retry_succeeds_plain():
+    err = Exception("model does not support response_format")
+    llm = _llm_with_client([err, '{"translation": "hi"}'])
+    data, _ = llm.chat_json("sys", "user")
+    assert data == {"translation": "hi"}
+    assert len(llm._client.chat.completions.calls) == 2
+
+
+def test_compat_retry_failure_is_wrapped_too():
+    err = Exception("model does not support response_format")
+    llm = _llm_with_client([err, Exception("network dead")])
+    with pytest.raises(GlossError) as exc:
+        llm.chat_json("sys", "user")
+    message = str(exc.value)
+    assert "调用模型失败" in message  # 重试失败也走同一个友好包装
+    assert "Traceback" not in message
+
+
+def test_plain_failure_is_wrapped():
+    llm = _llm_with_client([Exception("connection refused")])
+    with pytest.raises(GlossError) as exc:
+        llm.chat_json("sys", "user")
+    assert "调用模型失败" in str(exc.value)

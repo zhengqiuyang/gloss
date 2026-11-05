@@ -55,7 +55,9 @@ def test_resolve_related_links_known_and_parks_unknown(home):
     assert [c.term for c in linked] == ["Embedding"]
     assert pending == ["Faiss"]
     assert db.has_link(card.id, known.id)
-    assert db.get_card("RAG").related_names == ["Faiss"]
+    # 提及列表保持完整：已解析的也在，"待收录"是派生值
+    assert db.get_card("RAG").related_names == ["Embedding", "Faiss"]
+    assert db.pending_names(db.get_card("RAG")) == ["Faiss"]
 
 
 def test_backfill_links_later_card_into_pending(home):
@@ -63,19 +65,52 @@ def test_backfill_links_later_card_into_pending(home):
     db.resolve_related(rag)
     faiss = make_card("Faiss", aliases=["faiss"])
 
-    newly = db.backfill_links(faiss.id, faiss.norm)
+    newly = db.backfill_links(faiss)
 
     assert [c.term for c in newly] == ["RAG"]
     assert db.has_link(rag.id, faiss.id)
-    assert db.get_card("RAG").related_names == []
+    assert db.pending_names(db.get_card("RAG")) == []  # 提及保留，但已解析
 
 
 def test_backfill_is_case_insensitive(home):
     rag = make_card("RAG", related_names=["HNSW"])
     db.resolve_related(rag)
     hnsw = make_card("hnsw")
-    newly = db.backfill_links(hnsw.id, hnsw.norm)
+    newly = db.backfill_links(hnsw)
     assert newly and db.has_link(rag.id, hnsw.id)
+
+
+def test_backfill_matches_pending_alias_of_later_card(home):
+    """先挂起「检索增强生成」，后创建别名含它的英文卡片 → 自动补链。"""
+    note = make_card("阅读笔记", related_names=["检索增强生成"])
+    db.resolve_related(note)
+    rag = make_card("RAG", aliases=["Retrieval-Augmented Generation", "检索增强生成"])
+
+    newly = db.backfill_links(rag)
+
+    assert [c.term for c in newly] == ["阅读笔记"]
+    assert db.has_link(note.id, rag.id)
+    assert db.pending_names(db.get_card("阅读笔记")) == []  # 提及保留，但已解析
+
+
+def test_prune_stale_links_drops_links_neither_side_mentions(home):
+    a = make_card("RAG")
+    b = make_card("Embedding")
+    c = make_card("Faiss")
+    db.add_link(a.id, b.id)
+    db.add_link(a.id, c.id)
+    removed = db.prune_stale_links(a, {b.id, c.id})  # a 现在谁都不提
+    assert sorted(removed) == sorted([b.id, c.id])
+    assert not db.has_link(a.id, b.id)
+    assert not db.has_link(a.id, c.id)
+
+
+def test_prune_stale_links_kept_when_other_side_mentions(home):
+    a = make_card("RAG")
+    b = make_card("Embedding", related_names=["RAG"])
+    db.add_link(a.id, b.id)
+    assert db.prune_stale_links(a, {b.id}) == []  # 对方还提着 RAG，链接保留
+    assert db.has_link(a.id, b.id)
 
 
 def test_hit_counter(home):

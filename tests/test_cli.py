@@ -114,8 +114,8 @@ def test_export_json_and_md(runner, home, fake_llm, tmp_path):
     result = runner.invoke(cli, ["export", "--out", str(out_dir / "md")])
     assert result.exit_code == 0, result.output
     rag_md = (out_dir / "md" / "RAG.md").read_text()
-    assert "term: RAG" in rag_md
-    assert "[[Embedding]]" in rag_md
+    assert 'term: "RAG"' in rag_md  # YAML quoting
+    assert "[[Embedding|Embedding]]" in rag_md  # link target = real filename
     assert (out_dir / "md" / "index.md").exists()
 
 

@@ -73,7 +73,8 @@ def test_backfill_on_later_ingest(home, fake_llm):
     vector_db = db.get_card("向量数据库")
     assert vector_db is not None
     assert db.has_link(rag.id, vector_db.id)
-    assert "向量数据库" not in rag.related_names  # backfilled off the pending list
+    assert "向量数据库" in rag.related_names  # 提及保留
+    assert db.pending_names(rag) == ["Embedding", "langchain"]  # 只剩真正未收录的
 
 
 def test_llm_name_collision_keeps_user_spelling(home, fake_llm):
@@ -166,3 +167,94 @@ def test_image_ingest_creates_snippet(home, fake_llm, tmp_path):
     ingest.ingest_image(str(png))
     assert fake_llm.image_calls == [str(png)]
     assert db.get_card("关于 agent 记忆设计的笔记").type == "snippet"
+
+
+# -- 入库校验：JSON 能解析不等于卡片有效 -------------------------------------
+
+
+def test_empty_payload_is_rejected_not_saved(home, fake_llm):
+    fake_llm.term_queue = [({}, 10)]
+    with pytest.raises(GlossError):
+        ingest.lookup_or_ingest("JUNK")
+    assert db.get_card("JUNK") is None
+    assert db.counts()["total"] == 0
+
+
+def test_payload_missing_detail_is_rejected(home, fake_llm):
+    fake_llm.term_queue = [({"term": "X", "one_liner": "只有一句话"}, 10)]
+    with pytest.raises(GlossError):
+        ingest.lookup_or_ingest("X")
+    assert db.get_card("X") is None
+
+
+def test_non_dict_payload_is_rejected(home, fake_llm):
+    fake_llm.term_queue = [("一段字符串", 10)]
+    with pytest.raises(GlossError):
+        ingest.lookup_or_ingest("X")
+    assert db.get_card("X") is None
+
+
+def test_snippet_payload_without_title_is_rejected(home, fake_llm):
+    fake_llm.snippet_queue = [({"one_liner": "y", "detail": "z"}, 10)]
+    with pytest.raises(GlossError):
+        ingest.ingest_piped("一段足够长的内容 " * 10)
+    assert db.counts()["total"] == 0
+
+
+# -- 长文本：明确拒绝，而不是静默截断 ----------------------------------------
+
+
+def test_oversize_paste_is_refused_before_llm(home, fake_llm):
+    with pytest.raises(GlossError) as exc:
+        ingest.ingest_piped("长" * 8001)
+    assert "8000" in str(exc.value)
+    assert fake_llm.snippet_calls == []  # 根本没把截断后的内容发给模型
+
+
+def test_oversize_translate_is_refused(home, fake_llm):
+    with pytest.raises(GlossError) as exc:
+        ingest.translate_text("长" * 8001)
+    assert "8000" in str(exc.value)
+    assert fake_llm.translate_calls == []
+
+
+# -- 别名补链与关联替换 ------------------------------------------------------
+
+
+def test_adding_alias_backfills_pending(home, fake_llm):
+    note = make_card("阅读笔记", related_names=["Vector DB"])
+    db.resolve_related(note)
+    rag = make_card("RAG", one_liner="x")
+    ingest.patch_card(rag, aliases=["vector db"], additive=True)  # 新增别名匹配 pending（大小写不敏感）
+    assert db.has_link(note.id, rag.id)
+    assert db.pending_names(db.get_card("阅读笔记")) == []
+
+
+def test_replace_related_prunes_stale_links(home, fake_llm):
+    a = make_card("RAG", one_liner="x")
+    b = make_card("Embedding", one_liner="x")
+    c = make_card("Faiss", one_liner="x")
+    ingest.patch_card(a, related=["Embedding"])  # 替换语义：related 变成 [Embedding]
+    assert db.has_link(a.id, b.id)
+    ingest.patch_card(a, related=["Faiss"])  # 再替换：旧链接要被清掉
+    assert not db.has_link(a.id, b.id)
+    assert db.has_link(a.id, c.id)
+
+
+def test_replace_related_keeps_link_the_other_side_mentions(home, fake_llm):
+    a = make_card("RAG", one_liner="x")
+    b = make_card("Embedding", one_liner="x", related_names=["RAG"])
+    db.resolve_related(b)
+    ingest.patch_card(a, related=["Faiss"])  # a 不再提 Embedding，但对方还提着 RAG
+    assert db.has_link(a.id, b.id)
+
+
+def test_refresh_prunes_links_of_cleared_related(home, fake_llm):
+    make_card("Embedding", one_liner="x")
+    ingest.lookup_or_ingest("RAG")  # payload related 含 Embedding → 建链
+    assert db.has_link(db.get_card("RAG").id, db.get_card("Embedding").id)
+    fake_llm.term_queue.append(
+        (dict(TERM_PAYLOAD, related=[], aliases=[], tags=["nlp"]), 100)
+    )
+    ingest.lookup_or_ingest("RAG", refresh=True)
+    assert not db.has_link(db.get_card("RAG").id, db.get_card("Embedding").id)

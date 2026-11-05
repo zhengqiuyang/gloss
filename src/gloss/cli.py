@@ -435,7 +435,7 @@ def show(name: Tuple[str, ...], as_json: bool) -> None:
         click.echo(jsonlib.dumps(data, ensure_ascii=False, indent=2))
     else:
         ui.render_card(card, cache_hit=False, linked=db.neighbors(card.id),
-                       pending=card.related_names)
+                       pending=db.pending_names(card))
 
 
 @cli.command()
@@ -463,7 +463,7 @@ def related(name: Tuple[str, ...]) -> None:
     card = db.get_card(" ".join(name))
     if card is None:
         raise GlossError("本地没有这张卡片。")
-    ui.render_related(card, db.neighbors(card.id), card.related_names)
+    ui.render_related(card, db.neighbors(card.id), db.pending_names(card))
 
 
 @cli.command()

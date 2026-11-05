@@ -16,6 +16,9 @@ TERM_SCHEMA_HINT = (
     '{"term": str, "aliases": [str], "one_liner": str, "detail": str, '
     '"tags": [str], "related": [str]}'
 )
+# Max characters of pasted/translated text sent to the model in one call.
+# Ingest refuses anything longer instead of silently digesting a prefix.
+TEXT_MAX_CHARS = 8000
 SNIPPET_SCHEMA_HINT = (
     '{"title": str, "one_liner": str, "detail": str, "tags": [str], '
     '"key_terms": [str]}'
@@ -165,13 +168,16 @@ class GlossLLM:
                 response_format={"type": "json_object"},
             )
         except Exception as exc:
-            if "response_format" in str(exc):
-                # Some OpenAI-compatible servers reject response_format; retry plain.
+            if "response_format" not in str(exc):
+                raise GlossError(f"调用模型失败: {exc}") from exc
+            # Some OpenAI-compatible servers reject response_format; retry plain,
+            # with the same friendly wrapping as the first attempt.
+            try:
                 resp = self.client.chat.completions.create(
                     model=model, messages=messages, temperature=0.2
                 )
-            else:
-                raise GlossError(f"调用模型失败: {exc}") from exc
+            except Exception as retry_exc:
+                raise GlossError(f"调用模型失败: {retry_exc}") from retry_exc
         usage = resp.usage
         tokens = getattr(usage, "total_tokens", 0) if usage else 0
         text = resp.choices[0].message.content or ""

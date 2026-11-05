@@ -5,23 +5,27 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 from . import db
 from .models import Card
+
+# The vault index file lives at index.md; no card may take that name.
+INDEX_NAME = "index"
 
 
 def export_markdown(out_dir: Path) -> List[Path]:
     out_dir = out_dir.expanduser()
     out_dir.mkdir(parents=True, exist_ok=True)
+    cards = list(db.iter_all())
+    names = _all_filenames(cards)  # card id → file base name, wiki links use this
     written: List[Path] = []
-    used: set = set()
-    for card in db.iter_all():
-        path = out_dir / (_filename(card, used) + ".md")
-        path.write_text(_card_markdown(card), encoding="utf-8")
+    for card in cards:
+        path = out_dir / (names[card.id] + ".md")
+        path.write_text(_card_markdown(card, names), encoding="utf-8")
         written.append(path)
-    index = out_dir / "index.md"
-    index.write_text(_index_markdown(), encoding="utf-8")
+    index = out_dir / (INDEX_NAME + ".md")
+    index.write_text(_index_markdown(names), encoding="utf-8")
     written.append(index)
     return written
 
@@ -40,28 +44,50 @@ def export_json(out_path: Path) -> Path:
     return out_path
 
 
-def _filename(card: Card, used: set) -> str:
-    base = re.sub(r"[\\/:*?\"<>|]", "", card.term).strip().replace(" ", "-") or "untitled"
-    candidate, n = base, 2
-    while candidate in used:
-        candidate = f"{base}-{n}"
-        n += 1
-    used.add(candidate)
-    return candidate
+def _sanitize_filename(term: str) -> str:
+    cleaned = re.sub(r'[\\/:*?"<>|]', "", term).strip().replace(" ", "-")
+    # Windows keeps trailing dots/spaces out of filenames; macOS strips dots.
+    return cleaned.rstrip(". ") or "untitled"
+
+
+def _all_filenames(cards: List[Card]) -> Dict[int, str]:
+    """One filename per card, unique on case-insensitive filesystems.
+
+    macOS/Windows FS treat `Index.md` and `index.md` as the same file, so
+    collisions are detected on casefolded names while the real spelling is
+    kept for the file itself. Cards colliding with each other (or with the
+    reserved index name) get a numeric suffix.
+    """
+    used_cf = {INDEX_NAME}
+    names: Dict[int, str] = {}
+    for card in cards:
+        base = _sanitize_filename(card.term)
+        candidate, n = base, 2
+        while candidate.casefold() in used_cf:
+            candidate = f"{base}-{n}"
+            n += 1
+        used_cf.add(candidate.casefold())
+        names[card.id] = candidate
+    return names
+
+
+def _yaml_str(value: str) -> str:
+    """YAML-safe double-quoted scalar (JSON string syntax is valid YAML)."""
+    return json.dumps(str(value), ensure_ascii=False)
 
 
 def _yaml_list(name: str, items: List[str]) -> str:
     if not items:
         return ""
-    lines = "\n".join(f"  - {i}" for i in items)
+    lines = "\n".join(f"  - {_yaml_str(i)}" for i in items)
     return f"{name}:\n{lines}\n"
 
 
-def _card_markdown(card: Card) -> str:
+def _card_markdown(card: Card, names: Dict[int, str]) -> str:
     linked = db.neighbors(card.id)
     front = [
         "---",
-        f"term: {card.term}",
+        f"term: {_yaml_str(card.term)}",
         "type: " + card.type,
     ]
     if card.aliases:
@@ -73,7 +99,7 @@ def _card_markdown(card: Card) -> str:
         f"hits: {card.hit_count}",
     ]
     if card.source:
-        front.append(f"source: {card.source}")
+        front.append(f"source: {_yaml_str(card.source)}")
     front.append("---\n")
     body = f"# {card.term}\n\n"
     if card.one_liner:
@@ -81,19 +107,27 @@ def _card_markdown(card: Card) -> str:
     if card.detail:
         body += f"{card.detail}\n\n"
     if linked:
-        body += "**相关概念**: " + ", ".join(f"[[{c.term}]]" for c in linked) + "\n\n"
-    if card.related_names:
+        # [[filename|term]]: the link target is the real file, the display
+        # text keeps the user's original spelling.
         body += (
-            "**待收录**: "
-            + ", ".join(card.related_names)
+            "**相关概念**: "
+            + ", ".join(f"[[{names[c.id]}|{c.term}]]" for c in linked)
             + "\n\n"
         )
+    if card.related_names:
+        pending = db.pending_names(card)
+        if pending:
+            body += (
+                "**待收录**: "
+                + ", ".join(pending)
+                + "\n\n"
+            )
     if card.context:
         body += f"> 语境: {card.context}\n"
     return "\n".join(front) + "\n" + body
 
 
-def _index_markdown() -> str:
+def _index_markdown(names: Dict[int, str]) -> str:
     by_tag: dict = {}
     for card in db.iter_all():
         for tag in card.tags or ["未分类"]:
@@ -102,6 +136,6 @@ def _index_markdown() -> str:
     for tag, cards in sorted(by_tag.items()):
         lines.append(f"## #{tag}\n")
         for c in cards:
-            lines.append(f"- [[{c.term}]] — {c.one_liner}")
+            lines.append(f"- [[{names[c.id]}|{c.term}]] — {c.one_liner}")
         lines.append("")
     return "\n".join(lines)

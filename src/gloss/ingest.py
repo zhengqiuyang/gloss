@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 from . import db
 from . import llm as llm_mod
 from .config import load_config
+from .llm import TEXT_MAX_CHARS
 from .models import Card, GlossError, TYPE_SNIPPET, TYPE_TERM, norm_term, now_iso
 
 # A "term" is short, single-line input; anything longer is a snippet to digest.
@@ -47,6 +48,7 @@ def lookup_or_ingest(
 
     known = _known_terms()
     data, tokens = llm_mod.get_client().explain_term(term, known, context=note, source=source)
+    _validate_payload(data, kind="term")
     card = _card_from_llm(data, term=term, note=note, source=source, tokens=tokens)
     if norm_term(card.term) != norm_term(term) and db.get_card(card.term) is not None:
         # The LLM's normalized name collides with an existing card; keep the
@@ -58,7 +60,9 @@ def lookup_or_ingest(
             card.aliases.insert(0, payload_name)
 
     linked, pending = [], []
+    old_neighbors: set = set()
     if existing:  # --refresh keeps identity and history, replaces content
+        old_neighbors = {c.id for c in db.neighbors(existing.id)}
         existing.aliases = card.aliases
         existing.one_liner = card.one_liner
         existing.detail = card.detail
@@ -74,8 +78,33 @@ def lookup_or_ingest(
         db.insert_card(card)
 
     linked, pending = db.resolve_related(card)
-    backfilled = db.backfill_links(card.id, card.norm) if card.id else []
+    backfilled = db.backfill_links(card) if card.id else []
+    if old_neighbors:
+        db.prune_stale_links(card, old_neighbors)
     return {"card": card, "cache_hit": False, "linked": linked, "pending": pending, "backfilled": backfilled}
+
+
+def _validate_payload(data: Any, kind: str) -> None:
+    """Reject model payloads that would poison the glossary.
+
+    JSON that parses is not enough: an empty object, wrong types, or missing
+    core fields must not become an empty card. Called at the single gate
+    before anything is written, so every LLM client (real or test fake) is
+    covered.
+    """
+    if not isinstance(data, dict):
+        raise GlossError("模型返回的不是有效的卡片数据，没有收录。")
+    one_liner = str(data.get("one_liner") or "").strip()
+    detail = str(data.get("detail") or "").strip()
+    if not one_liner or not detail:
+        raise GlossError(
+            "模型返回的卡片缺少一句话定义或详情，没有收录。"
+            "可以再试一次，或在 gloss config 里换个模型。"
+        )
+    if kind == "snippet":
+        title = str(data.get("title") or "").strip()
+        if not title:
+            raise GlossError("模型没有为这段内容生成标题，没有收录。")
 
 
 def _card_from_llm(
@@ -117,8 +146,10 @@ def ingest_piped(text: str) -> Dict[str, Any]:
         raise GlossError("没有从管道读到内容")
     if len(text) <= TERM_MAX_CHARS and "\n" not in text:
         return lookup_or_ingest(text)
+    _check_length(text)
     known = _known_terms()
     data, tokens = llm_mod.get_client().digest_text(text, known)
+    _validate_payload(data, kind="snippet")
     title = str(data.get("title") or "").strip() or text[:40]
     title = _unique_title(title)
     card = Card(
@@ -137,6 +168,7 @@ def ingest_piped(text: str) -> Dict[str, Any]:
 def ingest_image(image_path: str, note: str = "") -> Dict[str, Any]:
     known = _known_terms()
     data, tokens = llm_mod.get_client().analyze_image(image_path, note, known)
+    _validate_payload(data, kind="snippet")
     title = str(data.get("title") or "").strip() or "image snippet"
     title = _unique_title(title)
     card = Card(
@@ -151,6 +183,15 @@ def ingest_image(image_path: str, note: str = "") -> Dict[str, Any]:
     )
     db.insert_card(card)
     return {"card": card, "key_terms": _as_list(data.get("key_terms")), "cache_hit": False}
+
+
+def _check_length(text: str) -> None:
+    """Refuse oversized input up front instead of silently digesting a prefix."""
+    if len(text) > TEXT_MAX_CHARS:
+        raise GlossError(
+            f"内容 {len(text)} 字符，超过单次处理上限 {TEXT_MAX_CHARS}。"
+            "超出部分会被直接丢弃，请拆成几次分别处理，或先精简再粘贴。"
+        )
 
 
 def _unique_title(title: str) -> str:
@@ -184,6 +225,7 @@ def translate_text(text: str) -> Dict[str, Any]:
             "tokens": 0,
         }
 
+    _check_length(text)
     translation, tokens = llm_mod.get_client().translate(text, target)
     row = db.insert_translation(hash_, text, target, translation, tokens)
     return {
@@ -239,6 +281,10 @@ def patch_card(
         return out
 
     mode = "extend" if additive else "replace"
+    # 替换关联时先记下旧邻居，保存后把"我不提、对方也不提"的旧链接剪掉
+    old_neighbors: set = set()
+    if related is not None and mode == "replace":
+        old_neighbors = {c.id for c in db.neighbors(card.id)}
     if one_liner is not None:
         card.one_liner = one_liner.strip()
     if detail is not None:
@@ -261,6 +307,8 @@ def patch_card(
     card.updated_at = now_iso()
     db.update_card(card)
     linked, pending = db.resolve_related(card)
-    backfilled = db.backfill_links(card.id, card.norm)
+    backfilled = db.backfill_links(card)
+    if old_neighbors:
+        db.prune_stale_links(card, old_neighbors)
     return {"card": card, "cache_hit": False, "linked": linked,
             "pending": pending, "backfilled": backfilled}

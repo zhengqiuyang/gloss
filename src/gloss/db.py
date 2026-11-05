@@ -337,10 +337,11 @@ def has_link(a_id: int, b_id: int) -> bool:
 
 
 def resolve_related(card: Card) -> Tuple[List[Card], List[str]]:
-    """Split the card's related_names into locally-linked cards and pending names.
+    """Create links for the card's related_names that resolve to local cards.
 
-    Pending names are persisted back on the card so a future card with that
-    term can be back-linked (see backfill_links).
+    related_names is the card's full mention list and stays intact — names
+    with no local card yet ("pending") remain in it and resolve dynamically
+    as new cards appear (see pending_names and backfill_links).
     """
     linked: List[Card] = []
     pending: List[str] = []
@@ -351,29 +352,80 @@ def resolve_related(card: Card) -> Tuple[List[Card], List[str]]:
             linked.append(other)
         else:
             pending.append(name)
-    if pending != card.related_names:
-        card.related_names = pending
-        update_card(card)
     return linked, pending
 
 
-def backfill_links(card_id: int, norm: str) -> List[Card]:
-    """After adding `card_id`, link it to cards whose pending related_names mention it."""
+def pending_names(card: Card) -> List[str]:
+    """Names in related_names that don't resolve to a local card yet."""
+    pending: List[str] = []
+    for name in card.related_names:
+        other = get_card(name)
+        if other is None or other.id == card.id:
+            pending.append(name)
+    return pending
+
+
+def backfill_links(card: Card) -> List[Card]:
+    """Materialize links from cards whose related_names mention this card.
+
+    Mentions match the card's term OR any of its aliases (normalized), so a
+    pending "检索增强生成" links up with the card named "RAG" that carries
+    that alias — even when the alias was added after the mention. The
+    mention itself stays in the other card's list; it simply resolves from
+    now on (see pending_names).
+    """
     newly_linked: List[Card] = []
+    my_norms = {norm_term(n) for n in card.all_names if norm_term(n)}
     for row in connect().execute(
-        "SELECT id, related_names FROM cards WHERE id != ? AND related_names LIKE ?",
-        (card_id, f'%"{norm}"%'),
+        "SELECT id FROM cards WHERE id != ? AND related_names != '[]'",
+        (card.id,),
     ).fetchall():
         other = Card.from_row(connect().execute(
             "SELECT * FROM cards WHERE id = ?", (row["id"],)
         ).fetchone())
-        names = [n for n in other.related_names if norm_term(n) != norm]
-        if len(names) != len(other.related_names):
-            other.related_names = names
-            update_card(other)
-            add_link(card_id, other.id)
-            newly_linked.append(other)
+        if any(norm_term(n) in my_norms for n in other.related_names):
+            if add_link(card.id, other.id):
+                newly_linked.append(other)
     return newly_linked
+
+
+def prune_stale_links(card: Card, old_neighbor_ids: set) -> List[int]:
+    """After a replace-style edit, drop old links neither side still justifies.
+
+    Callers snapshot the card's neighbor ids BEFORE replacing its content.
+    An old link survives if the card's current related_names still resolve to
+    the other card (same resolution as resolve_related: term or alias), or the
+    other card still mentions this one by one of its pending names. Fresh
+    ingests have no old neighbors, so only replace/refresh paths call this.
+    """
+    conn = connect()
+    justified: set = set()
+    for name in card.related_names:
+        target = get_card(name)
+        if target is not None and target.id != card.id:
+            justified.add(target.id)
+    removed: List[int] = []
+    for old_id in old_neighbor_ids:
+        if old_id == card.id or old_id in justified:
+            continue
+        other = get_card_by_id(old_id)
+        if other is None:
+            continue  # already deleted; the link cascaded with it
+        mentions_me = False
+        for name in other.related_names:
+            target = get_card(name)
+            if target is not None and target.id == card.id:
+                mentions_me = True
+                break
+        if mentions_me:
+            continue
+        conn.execute(
+            "DELETE FROM links WHERE card_a = ? AND card_b = ?",
+            (min(card.id, old_id), max(card.id, old_id)),
+        )
+        removed.append(old_id)
+    conn.commit()
+    return removed
 
 
 # ---------------------------------------------------------------------------
