@@ -11,7 +11,9 @@ unlike global event monitors — needs no Accessibility permission.
 
 from __future__ import annotations
 
+import atexit
 import ctypes
+import os
 import signal
 import threading
 from typing import Callable, Optional
@@ -85,6 +87,14 @@ def _carbon_to_ns_mods(carbon_mods: int) -> int:
 
 def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
     """Block forever running the menu-bar app; Ctrl+C or menu -> 退出 stops it."""
+    from . import appctl
+
+    existing = appctl.running_instance()
+    if existing is not None:
+        raise GlossError(
+            f"gloss app 已经在运行 (pid {existing})，不重复创建第二个实例。"
+            "查看状态: gloss app --status · 停止: gloss app --stop"
+        )
     try:
         import AppKit  # noqa: F401
         import Foundation  # noqa: F401
@@ -102,6 +112,10 @@ def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
     from .server import start_server
     from .ui import console
 
+    appctl.write_pid(os.getpid())
+    atexit.register(appctl.remove_pid)
+    signal.signal(signal.SIGTERM, _sigterm_stop)
+
     server = start_server(0)  # ephemeral port: never clashes with `gloss serve`
     port = server.server_address[1]
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -113,6 +127,14 @@ def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
         f"[green]📖 gloss 常驻已启动[/green]（菜单栏图标 · {display} 呼出弹窗 · Ctrl+C 退出）"
     )
     _run_gui(port=port, no_hotkey=no_hotkey, show_on_start=show_on_start)
+
+
+def _sigterm_stop(signum, frame) -> None:
+    """`gloss app --stop` lands here: release the pid file and die quietly."""
+    from . import appctl
+
+    appctl.remove_pid()
+    os._exit(0)
 
 
 def _run_gui(port: int, no_hotkey: bool, show_on_start: bool) -> None:
@@ -384,6 +406,13 @@ def _build_delegate_class():
             # the page calls window.close() on Esc
             if self.panel is not None:
                 self.panel.orderOut_(None)
+
+        def applicationWillTerminate_(self, notification) -> None:
+            # NSApp.terminate() exits via native code, so Python's atexit may
+            # not run — release the pid file here instead.
+            from . import appctl
+
+            appctl.remove_pid()
 
     return Delegate
 

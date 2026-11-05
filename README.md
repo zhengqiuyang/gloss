@@ -17,7 +17,7 @@ English | [简体中文](README.zh-CN.md)
 **Install** — one command, no API key needed:
 
 ```bash
-uv tool install git+https://github.com/zhengqiuyang/gloss
+uv tool install "gloss-cli[app] @ git+https://github.com/zhengqiuyang/gloss"
 ```
 
 [How it works](#how-it-works) · [Quickstart](#quickstart) · [Zero typing](#zero-typing) · [Platform support](#platform-support) · [Roadmap](#roadmap) · [Privacy](#privacy)
@@ -62,11 +62,12 @@ a key, and a card appears: a one-line definition, a few sentences of plain
 explanation, related concepts. It lives on your own machine — and you will
 never look this word up again.
 
-Daily use is a light habit: hit an unfamiliar term, copy, ⌘G (Mac) or
+Daily use is a light habit: hit an unfamiliar term, copy, ⌥⌘G (Mac) or
 Ctrl+G (Windows), the card floats up, click a related concept to take it
 with you, Esc back to reading. `gloss review` flips your week's margin notes
 back in front of you — "what was it I looked up?" is now its job, not yours.
-`gloss stats` shows the saved tokens compounding. `gloss export` writes the
+`gloss stats` keeps a rough estimate of the tokens you didn't spend
+(estimated as what a fresh lookup would have cost). `gloss export` writes the
 whole notebook out as Obsidian wikilinks — the data is yours, and always was.
 
 Three months from now, `gloss related RAG` shows you a graph: not a knowledge
@@ -93,8 +94,9 @@ It writes the margin notes for you, and keeps every one of them.
 ## How "once" becomes "forever"
 
 1. **Lookup is caching** — every term is checked against local SQLite first;
-   the LLM is called only on a miss, once, ever. Repeats cost 0 tokens,
-   0 latency, and work offline.
+   the LLM is called only on a miss. Repeats are answered from your own disk:
+   no tokens, no wait on a model, and they work offline. (Refresh, or delete
+   and re-ingest, calls the model again — on purpose.)
 2. **Cards, not chat bubbles** — aliases, a one-line definition, a short
    explanation, domain tags, where you met it: stored structured, searchable.
 3. **Concepts link to concepts** — when a new card mentions a term you already
@@ -105,7 +107,7 @@ It writes the margin notes for you, and keeps every one of them.
 flowchart LR
     A["Copy a term"] --> B{"Already owned?<br/>local SQLite"}
     B -- "hit" --> C["⚡ 0 tokens card"]
-    B -- "miss" --> D["LLM, once ever"]
+    B -- "miss" --> D["LLM, on a miss"]
     D --> E["✨ structured card"]
     E --> F["Auto-linked concepts"]
     C --> G["review · stats · export"]
@@ -116,18 +118,21 @@ flowchart LR
   <img src="docs/img/gloss-card.png" alt="gloss web card: KV Cache ingested, auto-linked to Pre-training / Post-training / Pooling / Dimensionality reduction" width="720">
 </p>
 
-Every lookup tells you whether it was a `⚡ 0 tokens` cache hit or a fresh
-`✨ card` — and `gloss stats` shows the saved tokens compounding.
+Every lookup tells you whether it was a `⚡ 0 tokens` cache hit (the card was
+answered locally) or a fresh `✨ card` — and `gloss stats` keeps a running
+estimate of what a cache-less setup would have spent.
 
 <a id="quickstart"></a>
 ## 30 seconds (no API key needed)
 
 > [!TIP]
 > `gloss demo` imports 9 interlinked sample cards and every feature works
-> offline — you can explore the full product before touching any API key.
+> offline. Install, the demo, and browsing what you already own never need
+> a key — only *generating new cards* does (configure any OpenAI-compatible
+> service below, also 30 seconds).
 
 ```bash
-uv tool install git+https://github.com/zhengqiuyang/gloss
+uv tool install "gloss-cli[app] @ git+https://github.com/zhengqiuyang/gloss"
 gloss demo            # 9 interlinked sample cards, every feature works offline
 gloss ls              # what the library looks like
 gloss related RAG     # how concepts connect
@@ -144,8 +149,11 @@ gloss config set llm.model deepseek-chat
 ```
 
 DeepSeek, GLM, Ollama (local and free)… anything with an OpenAI-compatible API, two lines to
-switch. Other options (explanation language, detail length, vision model,
-hotkey, port) — see `gloss config show`. Config lives in
+switch. Or skip the terminal: the popup's **⚙ settings panel** (from
+`gloss serve` / `gloss app`) edits the same values and has a connection test
+(it makes one tiny real call to the model). Other options (explanation
+language, detail length, vision model, hotkey, query-on-pop vs
+confirm-with-Enter) — see `gloss config show`. Config lives in
 `~/.gloss/config.toml`; the library is `gloss.db` next to it.
 
 <a id="zero-typing"></a>
@@ -156,12 +164,39 @@ reading**:
 
 | Platform | Daily shape |
 |---|---|
-| macOS | `gloss app` lives in the menu bar; **⌘G** pops the floating card (`⌘⇧⌃4` screenshots get parsed too); `gp` for one-key capture; `gloss paste --notify` for notification mode |
+| macOS | `gloss app` lives in the menu bar (background by default — closing the terminal is fine); **⌥⌘G** pops the floating card (`⌘⇧⌃4` screenshots get parsed too); `gp` for one-key capture; `gloss paste --notify` for notification mode |
 | Windows | `gloss hotkey` lives in the tray; **Ctrl+G** pops a frameless card (`Win+Shift+S` screenshots likewise) |
 | Everywhere | `echo "a passage" \| gloss` digests it into a snippet card; `gloss tr` translates the clipboard; `gloss serve` is a local web popup + HTTP API; `gloss export` writes Obsidian wikilinks / JSON backups |
 
+By default, popping the card auto-queries whatever is in the clipboard — an
+uncached term (or screenshot) is sent to the model provider you configured.
+Prefer a beat of confirmation? `gloss config set app.auto_lookup false` (or
+the ⚙ panel) switches to prefill-then-Enter, text and screenshots alike.
+New installs default to **⌥⌘G** on macOS, since ⌘+single-key hotkeys take
+over that shortcut in every other app; change it with `gloss config set
+app.hotkey <combo>`.
+
 Hotkey, Raycast, Shortcuts and AutoHotkey recipes live in
 [extras/README.md](extras/README.md).
+
+<a id="keep-it-running"></a>
+## Keep it running (macOS)
+
+`gloss app` detaches by default — start it, close the terminal, keep
+glossing. There is only ever one instance.
+
+| Command | What it does |
+|---|---|
+| `gloss app` | background + floating card; the terminal can close |
+| `gloss app --hidden` | background, no popup on start |
+| `gloss app --foreground` | foreground, logs in the terminal (debugging) |
+| `gloss app --startup` | login autostart (user-level LaunchAgent, hidden) + ensures it runs |
+| `gloss app --no-startup` | cancel autostart — library and config untouched |
+| `gloss app --status` / `--stop` | diagnostics / stop the background instance |
+
+Quitting from the menu bar is a full quit: nothing relaunches it behind your
+back — with autostart on, gloss comes back at your next login. Hotkey and
+model changes need an app restart to take effect.
 
 <a id="platform-support"></a>
 ## Platform support
@@ -171,12 +206,12 @@ Hotkey, Raycast, Shortcuts and AutoHotkey recipes live in
 | Core CLI — lookup, glossary, edit/rm, translate, review, stats, export, `gloss serve`, `gloss demo` | **Cross-platform** (any Python 3.9+; runtime deps only click/rich/openai) |
 | `gloss paste` (clipboard capture: text + screenshots) | **macOS & Windows**; Linux needs adapters (see `src/gloss/clipboard.py`) |
 | `gloss hotkey` (global-hotkey popup + tray) | **Windows only** — frameless WebView2 card; the macOS counterpart is `gloss app` |
-| `gloss app` (menu bar + ⌘G popup) | **macOS only** — pyobjc, Carbon hotkey |
+| `gloss app` (menu bar + ⌥⌘G popup, background/autostart) | **macOS only** — pyobjc, Carbon hotkey |
 
 <a id="roadmap"></a>
 ## Roadmap
 
-- [x] Zero-typing capture: `gloss paste` + global hotkeys (⌘G on macOS, Ctrl+G on Windows)
+- [x] Zero-typing capture: `gloss paste` + global hotkeys (⌥⌘G on macOS, Ctrl+G on Windows)
 - [x] Local web popup + HTTP API (`gloss serve` — the base for every future surface)
 - [x] Menu-bar app (macOS) / tray frameless card (Windows)
 - [ ] Semantic search with local embeddings
@@ -189,9 +224,11 @@ Hotkey, Raycast, Shortcuts and AutoHotkey recipes live in
 ## Privacy
 
 > [!IMPORTANT]
-> Your glossary is a local SQLite file. Only the term you look up (plus your
-> existing term list, used for linking) is sent to the LLM provider you
-> configure. No telemetry, nothing else leaves your machine.
+> Your glossary is a local SQLite file. Only what you deliberately submit
+> goes to the LLM provider you configured: the term you look up, your
+> existing term list (used for linking), any context/source note attached,
+> pasted text you digest, screenshots you parse, and text you translate.
+> No telemetry, nothing else leaves your machine.
 
 ## Contributing
 

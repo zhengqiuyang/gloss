@@ -1,8 +1,14 @@
 """Local web popup + HTTP API. Binds to 127.0.0.1 only.
 
 Entry points served:
-  GET  /            the popup page (pre-filled from the server-side clipboard)
-  POST /api/lookup  {"text": str, "note"?, "source"?} -> glossed card JSON
+  GET  /                 the popup page (pre-filled from the server-side clipboard)
+  POST /api/lookup       {"text": str, "note"?, "source"?} -> glossed card JSON
+  POST /api/image        digest whatever image is in the clipboard
+  POST /api/translate    {"text": str} -> cached translation
+  GET  /api/config       current settings (api key masked)
+  POST /api/config       save settings ({"model": ..., "api_key": ...})
+  POST /api/config/test  one tiny real completion; classifies the failure
+  POST /api/demo         seed the offline demo glossary (no API key needed)
 
 Every future surface (hotkey panel, browser extension, IM bot) should speak
 this API instead of importing gloss internals.
@@ -15,11 +21,54 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Dict, List, Optional
 
 from . import clipboard, ingest
-from .config import load_config
+from .config import load_config, resolve_api_key
 from .models import Card, GlossError
 
 DEFAULT_PORT = 7789
 _MAX_BODY = 1024 * 1024
+
+# settings-page names -> config.toml dotted keys
+_SETTING_ROUTES = {
+    "base_url": "llm.base_url",
+    "model": "llm.model",
+    "vision_model": "llm.vision_model",
+    "api_key": "llm.api_key",
+    "hotkey": "app.hotkey",
+    "auto_lookup": "app.auto_lookup",
+    "language": "glossary.language",
+}
+
+
+def settings_payload() -> Dict[str, Any]:
+    """What the settings page is allowed to see; the key is always masked."""
+    cfg = load_config()
+    llm, app_, g = cfg["llm"], cfg["app"], cfg["glossary"]
+    key = llm.get("api_key", "")
+    masked = (key[:4] + "…" + key[-4:]) if len(key) > 8 else ("…" if key else "")
+    return {
+        "base_url": llm["base_url"],
+        "model": llm["model"],
+        "vision_model": llm.get("vision_model", ""),
+        "api_key": masked,
+        "hotkey": app_["hotkey"],
+        "language": g["language"],
+        "auto_lookup": app_.get("auto_lookup", True),
+        "has_api_key": resolve_api_key(cfg) is not None,
+    }
+
+
+def classify_llm_error(message: str) -> str:
+    """Map a raw provider error onto the four failure modes users actually hit."""
+    m = message.lower()
+    if "401" in m or "unauthorized" in m or "invalid api key" in m or "authentication" in m:
+        return "认证失败：API key 不对或已过期。"
+    if "404" in m or "model_not_found" in m or "does not exist" in m or "no such model" in m:
+        return "模型不存在：检查「文字模型」的拼写，或该服务是否提供这个模型。"
+    if "timed out" in m or "timeout" in m or "超时" in m:
+        return "连接超时：服务地址可达但响应太慢，或网络受限。"
+    if "connection" in m or "resolve" in m or "getaddrinfo" in m or "refused" in m or "unreachable" in m:
+        return "连不上服务地址：检查「服务地址」拼写（OpenAI 兼容服务通常以 /v1 结尾）。"
+    return "测试失败：" + message[:200]
 
 
 def card_to_dict(card: Card, linked: Optional[List[Card]] = None,
@@ -70,6 +119,8 @@ def make_handler():
             from urllib.parse import parse_qs, urlparse
 
             route = urlparse(self.path)
+            if route.path == "/api/config":
+                return self._json(200, settings_payload())
             if route.path != "/":
                 return self._json(404, {"error": "not found"})
             glass = "1" in parse_qs(route.query).get("glass", [])
@@ -81,11 +132,14 @@ def make_handler():
                     prefill = data
             except GlossError:
                 pass  # empty clipboard: start with an empty input
+            cfg = load_config()
             html = (
                 _PAGE
                 .replace("__PREFILL__", json.dumps(prefill, ensure_ascii=False).replace("</", "<\\/"))
                 .replace("__HINT__", json.dumps(hint, ensure_ascii=False).replace("</", "<\\/"))
                 .replace("__CLIP_KIND__", json.dumps(clip_kind))
+                .replace("__AUTO_LOOKUP__", json.dumps(bool(cfg["app"].get("auto_lookup", True))))
+                .replace("__NO_KEY__", json.dumps(resolve_api_key(cfg) is None))
                 .replace("<body>", '<body class="glass">' if glass else "<body>")
             )
             body = html.encode("utf-8")
@@ -100,6 +154,12 @@ def make_handler():
                 return self._image()
             if self.path == "/api/translate":
                 return self._translate()
+            if self.path == "/api/config":
+                return self._config_set()
+            if self.path == "/api/config/test":
+                return self._config_test()
+            if self.path == "/api/demo":
+                return self._demo()
             if self.path != "/api/lookup":
                 return self._json(404, {"error": "not found"})
             try:
@@ -165,6 +225,59 @@ def make_handler():
             cfg = load_config()
             llm = cfg["llm"]
             return bool(llm.get("vision_model") or llm.get("model"))
+
+        def _read_body(self) -> Dict[str, Any]:
+            length = min(int(self.headers.get("Content-Length", 0)), _MAX_BODY)
+            return json.loads(self.rfile.read(length) or b"{}")
+
+        def _config_set(self) -> None:
+            from .config import set_config_value
+
+            try:
+                data = self._read_body()
+            except (ValueError, json.JSONDecodeError):
+                return self._json(400, {"error": "请求体不是合法 JSON"})
+            if not isinstance(data, dict) or not data:
+                return self._json(400, {"error": "没有要保存的设置"})
+            try:
+                for key, value in data.items():
+                    dotted = _SETTING_ROUTES.get(key)
+                    if dotted is None:
+                        return self._json(400, {"error": f"不认识的设置项: {key}"})
+                    literal = str(value).lower() if isinstance(value, bool) else str(value)
+                    set_config_value(dotted, literal)
+            except GlossError as exc:
+                return self._json(400, {"error": str(exc)})
+            return self._json(200, {"ok": True, "saved": list(data.keys()),
+                                    "config": settings_payload()})
+
+        def _config_test(self) -> None:
+            cfg = load_config()
+            if resolve_api_key(cfg) is None:
+                return self._json(200, {
+                    "ok": False,
+                    "error": "还没有配置 API key——在设置里填好并保存后再测试。",
+                })
+            try:
+                from .llm import GlossLLM
+
+                llm = GlossLLM(cfg)
+                client = llm.client  # raises the friendly no-key error before any network
+                resp = client.chat.completions.create(
+                    model=cfg["llm"]["model"],
+                    messages=[{"role": "user", "content": "Reply with the single word: ok"}],
+                    max_tokens=4,
+                )
+                reply = (resp.choices[0].message.content or "").strip()
+                return self._json(200, {"ok": True, "reply": reply[:40] or "（空响应）"})
+            except Exception as exc:
+                return self._json(200, {"ok": False, "error": classify_llm_error(str(exc))})
+
+        def _demo(self) -> None:
+            from .demo import seed_demo
+
+            added, skipped = seed_demo()
+            self._json(200, {"added": added, "skipped": skipped})
 
     return Handler
 
@@ -254,6 +367,24 @@ _PAGE = """<!doctype html>
   }
   .tbtn:hover { background: rgba(10,132,255,.22); }
   .hint { color: var(--amber); font-size: 12px; margin: 7px 4px 0; min-height: 1.2em; }
+
+  /* settings panel */
+  .frow { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
+  .frow label { width: 72px; flex: none; color: var(--text2); font-size: 12px; }
+  .frow input[type="text"], .frow input[type="password"] {
+    flex: 1; min-width: 0;
+    border: 1px solid var(--stroke); border-radius: 8px; padding: 5px 10px;
+    background: transparent; color: inherit; font-family: inherit; font-size: 12.5px;
+  }
+  .frow input:focus { outline: 0; border-color: rgba(10,132,255,.65); }
+  .frow small { color: var(--text2); font-size: 11px; }
+  .sbtn {
+    display: inline-block; cursor: pointer; font-size: 12px; font-weight: 600;
+    padding: 5px 14px; border-radius: 999px;
+    background: rgba(10,132,255,.13); color: var(--accent);
+  }
+  .sbtn:hover { background: rgba(10,132,255,.24); }
+  .sbtn.warm { background: rgba(255,159,10,.13); color: var(--amber); }
 
   #out { margin-top: 10px; max-height: calc(100vh - 104px); overflow-y: auto;
          scrollbar-width: thin; }
@@ -346,20 +477,34 @@ _PAGE = """<!doctype html>
     <input id="q" type="text" placeholder="丢一个词进来，回车查询 / 收录" autocomplete="off" spellcheck="false" autofocus>
     <kbd>↵</kbd>
     <button id="trbtn" class="tbtn" title="翻译输入框里的内容（译文缓存复用）">译</button>
+    <button id="cfgbtn" class="tbtn" title="设置：服务 / 模型 / API key / 快捷键">⚙</button>
   </div>
   <div class="hint" id="hint"></div>
   <div id="out">
     <div class="empty">
       <div class="big">📖</div>
       <div class="slogan">查一次，永久拥有。</div>
-      <div class="tips">复制后呼出即自动查询 · <kbd>Esc</kbd> 关窗 · 点击任何关联词继续查</div>
+      <div class="tips">复制后呼出即查询（可在设置改为回车确认） · <kbd>Esc</kbd> 关窗 · 点关联词继续查</div>
     </div>
+  </div>
+  <div id="settings" class="card" style="display:none">
+    <div class="topline"><span class="badge new">⚙ 设置</span></div>
+    <div id="sbody"></div>
+    <div class="meta" style="margin-top:9px">视觉模型与文字模型共用服务地址和 API key · 热键改动需重启 gloss app 生效 · API key 明文保存在 ~/.gloss/config.toml（后续会支持 macOS Keychain）</div>
+    <div class="kts" style="margin-top:8px">
+      <span class="sbtn" id="ssave">保存</span>
+      <span class="sbtn warm" id="stest">测试连接（会真实调用一次模型）</span>
+      <span class="sbtn" id="sclose" style="background:rgba(128,128,128,.14);color:var(--text2)">关闭</span>
+    </div>
+    <div class="hint" id="smsg"></div>
   </div>
 </div>
 <script>
 const PREFILL = __PREFILL__;
 const HINT = __HINT__;
 const CLIP_KIND = __CLIP_KIND__;
+const AUTO = __AUTO_LOOKUP__;
+let NO_KEY = __NO_KEY__;
 const q = document.getElementById("q");
 const out = document.getElementById("out");
 const hintEl = document.getElementById("hint");
@@ -448,9 +593,13 @@ function render(d) {
   out.scrollTop = 0;
 }
 
+let busy = false;  // 同一时刻只放行一个请求，避免重复触发同一查询
+
 async function lookup() {
+  if (busy) return;
   const text = q.value.trim();
   if (!text) return;
+  busy = true;
   out.textContent = "";
   out.appendChild(el("div", "spin", "查询中…"));
   try {
@@ -462,10 +611,14 @@ async function lookup() {
     render(await r.json());
   } catch (e) {
     render({ error: "请求失败: " + e });
+  } finally {
+    busy = false;
   }
 }
 
 async function lookupImage() {
+  if (busy) return;
+  busy = true;
   out.textContent = "";
   out.appendChild(el("div", "spin", "解析剪贴板里的图片…"));
   try {
@@ -473,6 +626,8 @@ async function lookupImage() {
     render(await r.json());
   } catch (e) {
     render({ error: "请求失败: " + e });
+  } finally {
+    busy = false;
   }
 }
 function renderTranslation(d) {
@@ -496,8 +651,10 @@ function renderTranslation(d) {
 }
 
 async function translateCurrent() {
+  if (busy) return;
   const text = q.value.trim();
   if (!text) return;
+  busy = true;
   out.textContent = "";
   out.appendChild(el("div", "spin", "翻译中…"));
   try {
@@ -509,16 +666,165 @@ async function translateCurrent() {
     renderTranslation(await r.json());
   } catch (e) {
     renderTranslation({ error: "请求失败: " + e });
+  } finally {
+    busy = false;
   }
 }
 document.getElementById("trbtn").addEventListener("click", translateCurrent);
 
-q.addEventListener("keydown", e => { if (e.key === "Enter") lookup(); });
+q.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  // 手动确认模式下，剪贴板是截图而输入框为空：回车 = 确认解析截图
+  if (!q.value.trim() && CLIP_KIND === "image") { lookupImage(); return; }
+  lookup();
+});
 document.addEventListener("keydown", e => { if (e.key === "Escape") window.close(); });
 
-// 热键/打开即意图：剪贴板里有词就直接查，有图就直接解析，不再多按一次回车
-if (CLIP_KIND === "image") lookupImage();
-else if (PREFILL.trim()) lookup();
+// -- 首次引导 / 两种查询模式 ------------------------------------------------
+// AUTO=true: 呼出即查询（会把剪贴板未命中内容发给模型服务商）
+// AUTO=false: 只预填，按回车确认（文字与截图都覆盖）
+
+function renderOnboarding() {
+  out.textContent = "";
+  const card = el("div", "card");
+  const top = el("div", "topline");
+  top.appendChild(el("span", "badge new", "👋 第一次用"));
+  card.appendChild(top);
+  card.appendChild(el("h1", null, "先配一个模型服务，或先白嫖示例"));
+  card.appendChild(el("div", "detail",
+    "收录新词需要一个 OpenAI 兼容服务（DeepSeek / GLM / Ollama 本地…都行）。"
+    + "不配 key 也能先逛：导入 9 张互相关联的示例卡，浏览、搜索、关联全部离线可用。"));
+  const row = el("div", "kts");
+  const demoBtn = el("span", "kt", "📚 导入示例词库（离线，不需要 key）");
+  demoBtn.onclick = importDemo;
+  const cfgBtn = el("span", "kt", "⚙ 打开设置");
+  cfgBtn.onclick = () => toggleSettings();
+  row.appendChild(demoBtn);
+  row.appendChild(cfgBtn);
+  card.appendChild(row);
+  card.appendChild(el("div", "meta",
+    "自动查询模式下，呼出弹窗会把剪贴板里的内容发给模型服务商；"
+    + "想每次手动确认，可在设置里关掉「自动查询」。"));
+  out.appendChild(card);
+  out.scrollTop = 0;
+}
+
+async function importDemo() {
+  if (busy) return;
+  busy = true;
+  out.textContent = "";
+  out.appendChild(el("div", "spin", "导入示例中…"));
+  try {
+    const r = await fetch("/api/demo", { method: "POST" });
+    const d = await r.json();
+    if (d.error) { render({ error: d.error }); return; }
+    hintEl.textContent = "已导入 " + d.added + " 张示例卡"
+      + (d.skipped ? "（跳过 " + d.skipped + " 张你已有的）" : "")
+      + "。输入一个词试试，或点下面这张卡里的关联词。";
+    glossNow("RAG");  // 渲染真实导入的 RAG 卡（本地命中，0 token）
+  } catch (e) {
+    render({ error: "请求失败: " + e });
+  } finally {
+    busy = false;
+  }
+}
+
+if (NO_KEY) {
+  renderOnboarding();  // 还没有 key：引导而不是白白发一次会失败的请求
+} else if (CLIP_KIND === "image") {
+  if (AUTO) lookupImage();
+  else hintEl.textContent = "剪贴板里有截图——按回车解析（当前为手动确认模式）。";
+} else if (PREFILL.trim()) {
+  if (AUTO) lookup();
+  else hintEl.textContent = "已预填剪贴板内容——按回车确认查询（当前为手动确认模式）。";
+}
+
+// -- 设置面板 ---------------------------------------------------------------
+
+const settingsEl = document.getElementById("settings");
+const sbody = document.getElementById("sbody");
+const smsg = document.getElementById("smsg");
+document.getElementById("cfgbtn").addEventListener("click", toggleSettings);
+document.getElementById("sclose").addEventListener("click", () => { settingsEl.style.display = "none"; });
+
+async function toggleSettings() {
+  if (settingsEl.style.display === "none") {
+    await loadSettings();
+    settingsEl.style.display = "";
+  } else {
+    settingsEl.style.display = "none";
+  }
+}
+
+function fieldRow(key, label, placeholder) {
+  const row = el("div", "frow");
+  row.appendChild(el("label", null, label));
+  const input = document.createElement("input");
+  input.type = key === "api_key" ? "password" : "text";
+  input.id = "set-" + key;
+  input.placeholder = placeholder || "";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  row.appendChild(input);
+  return row;
+}
+
+async function loadSettings() {
+  smsg.textContent = "";
+  try {
+    const d = await (await fetch("/api/config")).json();
+    sbody.textContent = "";
+    sbody.appendChild(fieldRow("base_url", "服务地址", d.base_url));
+    sbody.appendChild(fieldRow("model", "文字模型", d.model));
+    sbody.appendChild(fieldRow("vision_model", "视觉模型", d.vision_model || "（留空则用文字模型）"));
+    sbody.appendChild(fieldRow("api_key", "API key", d.api_key || "sk-…（已保存的会打码）"));
+    sbody.appendChild(fieldRow("hotkey", "全局热键", d.hotkey));
+    sbody.appendChild(fieldRow("language", "解释语言", d.language));
+    const autoRow = el("div", "frow");
+    autoRow.appendChild(el("label", null, "自动查询"));
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.id = "set-auto_lookup";
+    check.checked = !!d.auto_lookup;
+    autoRow.appendChild(check);
+    autoRow.appendChild(el("small", null, "呼出弹窗即查询剪贴板；关掉则预填，等回车确认"));
+    sbody.appendChild(autoRow);
+  } catch (e) {
+    smsg.textContent = "读取设置失败: " + e;
+  }
+}
+
+document.getElementById("ssave").addEventListener("click", async () => {
+  const payload = { auto_lookup: document.getElementById("set-auto_lookup").checked };
+  ["base_url", "model", "vision_model", "hotkey", "language"].forEach(k => {
+    const v = document.getElementById("set-" + k).value.trim();
+    if (v) payload[k] = v;
+  });
+  const key = document.getElementById("set-api_key").value.trim();
+  if (key) payload.api_key = key;  // 留空 = 不改动已保存的 key
+  try {
+    const d = await (await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })).json();
+    if (d.error) { smsg.textContent = "✗ " + d.error; return; }
+    NO_KEY = false;
+    smsg.textContent = "✓ 已保存" + (payload.api_key ? "（key 已明文写入 ~/.gloss/config.toml）" : "");
+  } catch (e) {
+    smsg.textContent = "保存失败: " + e;
+  }
+});
+
+document.getElementById("stest").addEventListener("click", async () => {
+  smsg.textContent = "测试中…（会真实调用一次模型，消耗极少量 token）";
+  try {
+    const d = await (await fetch("/api/config/test", { method: "POST" })).json();
+    smsg.textContent = d.ok ? "✓ 连接正常，模型回复: " + d.reply : "✗ " + d.error;
+  } catch (e) {
+    smsg.textContent = "测试请求失败: " + e;
+  }
+});
 </script>
 </body>
 </html>

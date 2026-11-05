@@ -169,13 +169,109 @@ def serve(port: Optional[int], no_browser: bool) -> None:
 
 
 @cli.command("app")
-@click.option("--no-hotkey", is_flag=True, help="不注册全局快捷键 ⌘G")
-@click.option("--hidden", is_flag=True, help="启动时不弹出窗口")
-def app_cmd(no_hotkey: bool, hidden: bool) -> None:
-    """启动菜单栏应用：全局热键弹窗 + 常驻服务（需安装 pyobjc）。"""
-    from .app import run_app
+@click.option("--no-hotkey", is_flag=True, help="不注册全局热键 ⌘G")
+@click.option("--hidden", is_flag=True, help="启动时不弹出窗口（与前台/后台无关）")
+@click.option("--foreground", is_flag=True, help="前台运行，日志直接打到终端（调试用）")
+@click.option("--startup", "startup_mode", flag_value="install", default=None,
+              help="写入登录自启（LaunchAgent）并确保应用在运行")
+@click.option("--no-startup", "startup_mode", flag_value="remove", default=None,
+              help="移除登录自启（不动词库/配置，也不停当前实例）")
+@click.option("--stop", "stop_flag", is_flag=True, help="停止后台实例")
+@click.option("--status", "status_flag", is_flag=True, help="查看运行状态与诊断")
+def app_cmd(no_hotkey: bool, hidden: bool, foreground: bool,
+            startup_mode: str, stop_flag: bool, status_flag: bool) -> None:
+    """macOS 菜单栏应用：默认后台驻留，关掉终端照常用；永远只有一个实例。
 
-    run_app(no_hotkey=no_hotkey, show_on_start=not hidden)
+    \b
+      gloss app               # 后台驻留并弹出浮窗，终端可以关
+      gloss app --hidden      # 后台驻留，不弹窗
+      gloss app --foreground  # 前台运行（调试）
+      gloss app --startup     # 登录自启（隐藏启动）并确保在运行
+      gloss app --no-startup  # 取消登录自启（当前实例继续跑）
+      gloss app --status      # 是否在运行 + 诊断信息
+      gloss app --stop        # 停止后台实例
+
+    菜单栏「退出 gloss」= 完全退出；开了自启也是下次登录才再启动。
+    热键等配置改动需重启 gloss app 后生效。
+    """
+    from . import appctl
+
+    if status_flag:
+        _print_app_status(appctl.status())
+        return
+    if stop_flag:
+        pid = appctl.stop()
+        if pid is None:
+            ui.console.print("[dim]gloss app 没有在运行。[/dim]")
+        else:
+            ui.console.print(f"[green]✓ 已停止 (pid {pid})[/green]")
+        return
+    if startup_mode == "install":
+        _require_darwin_app()
+        path = appctl.install_startup()
+        ui.console.print(f"[green]✓ 已写入登录自启[/green]（{path}，登录后隐藏启动）")
+        if appctl.running_instance() is None:
+            appctl.spawn_background(hidden=True)
+            ui.console.print("[green]✓ 已在后台启动[/green]（gloss app --status 查看状态）")
+        else:
+            ui.console.print("[dim]实例已在运行，无需再启动。[/dim]")
+        return
+    if startup_mode == "remove":
+        _require_darwin_app()
+        if appctl.remove_startup():
+            ui.console.print("[green]✓ 已移除登录自启[/green]（当前实例不受影响，继续运行）")
+        else:
+            ui.console.print("[dim]本来就没有登录自启。[/dim]")
+        return
+
+    if foreground:
+        _require_darwin_app()
+        from .app import run_app
+
+        run_app(no_hotkey=no_hotkey, show_on_start=not hidden)
+        return
+
+    _require_darwin_app()
+    try:
+        pid = appctl.spawn_background(hidden=hidden)
+    except GlossError as exc:
+        if "已在运行" in str(exc):
+            ui.console.print(f"[dim]{exc}[/dim]")
+            return
+        raise
+    ui.console.print(
+        f"[green]✓ gloss 已在后台驻留[/green]（pid {pid}，终端可以关了）\n"
+        "菜单栏 📖 可呼出弹窗；查看状态: gloss app --status · 停止: gloss app --stop"
+    )
+
+
+def _require_darwin_app() -> None:
+    if sys.platform != "darwin":
+        raise GlossError(
+            "gloss app 仅支持 macOS。Windows 的对应能力是 gloss hotkey"
+            "（后台驻留用 gloss hotkey --detach，登录自启用 gloss hotkey --startup）。"
+        )
+
+
+def _print_app_status(st: dict) -> None:
+    from .config import load_config
+
+    running = f"[green]运行中[/green] (pid {st['pid']})" if st["running"] else "[dim]未运行[/dim]"
+    autostart = "已启用（登录后隐藏启动）" if st["startup"] else "未启用"
+    spec = load_config()["app"]["hotkey"]
+    ui.console.print(
+        f"运行状态: {running}\n"
+        f"登录自启: {autostart}\n"
+        f"热键配置: {spec}（改动需重启 gloss app 生效）\n"
+        f"日志: {appctl_log()}（最近几行）\n"
+        + st["log_tail"]
+    )
+
+
+def appctl_log():
+    from . import appctl
+
+    return appctl.log_path()
 
 
 @cli.command("hotkey")

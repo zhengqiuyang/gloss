@@ -44,10 +44,21 @@ def test_parse_hotkey_variants():
     assert app.parse_hotkey("") is None
 
 
-def test_config_default_hotkey_is_cmd_g(home):
+def test_config_default_hotkey_is_alt_cmd_g(home):
+    """新装默认 ⌥⌘G：⌘+单键会接管其他应用的「查找下一个」（老用户自定义不受影响）。"""
     from gloss.config import load_config
 
-    assert load_config()["app"]["hotkey"] == "cmd+g"
+    assert load_config()["app"]["hotkey"] == "cmd+alt+g"
+
+
+def test_config_auto_lookup_defaults_on_and_parses_bool(home):
+    from gloss.config import load_config, set_config_value
+
+    assert load_config()["app"]["auto_lookup"] is True
+    set_config_value("app.auto_lookup", "off")
+    assert load_config()["app"]["auto_lookup"] is False
+    set_config_value("app.auto_lookup", "on")
+    assert load_config()["app"]["auto_lookup"] is True
 
 
 @pytest.fixture

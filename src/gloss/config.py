@@ -36,9 +36,23 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "port": 7789,
     },
     "app": {
-        "hotkey": "cmd+g",
+        # 新装默认 ⌥⌘G：⌘+单键是全局热键，会接管其他应用的「查找下一个」；
+        # 老用户在 config.toml 里写过的自定义组合不受影响
+        "hotkey": "cmd+alt+g",
+        # True: 呼出弹窗即自动查询剪贴板；False: 预填内容，等回车确认
+        "auto_lookup": True,
     },
 }
+
+
+def _to_bool(raw: str) -> bool:
+    lowered = raw.strip().lower()
+    if lowered in ("1", "true", "yes", "on", "开"):
+        return True
+    if lowered in ("0", "false", "no", "off", "关"):
+        return False
+    raise ValueError(f"not a boolean: {raw!r}")
+
 
 # Flat dotted paths accepted by `gloss config set`, with value coercers.
 _CONFIG_SCHEMA = {
@@ -53,6 +67,7 @@ _CONFIG_SCHEMA = {
     "glossary.max_known_terms": int,
     "serve.port": int,
     "app.hotkey": str,
+    "app.auto_lookup": _to_bool,
 }
 
 
