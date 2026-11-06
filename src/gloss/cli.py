@@ -628,6 +628,41 @@ def _interactive_terminal() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 
+def _click_hidden_eof_safe() -> bool:
+    """click >= 8.2 raises EOF on exhausted scripted input even for hidden
+    prompts. click 8.1 (the Python 3.9 floor) returns "" and re-asks forever
+    — and its hidden prompt would read the real console under fake stdin.
+    """
+    try:
+        major, minor = (int(p) for p in click.__version__.split(".")[:2])
+    except (AttributeError, ValueError):
+        return True
+    return (major, minor) >= (8, 2)
+
+
+def _prompt_key(label: str, required: bool) -> str:
+    """Hidden API key prompt that never blocks on click 8.1 (Python 3.9).
+
+    On click >= 8.2 use the native hidden prompt (CliRunner turns exhausted
+    input into EOF -> Abort). On click 8.1 fall back to a plain prompt with
+    default="": an empty answer for a required key then means EOF, i.e.
+    cancel the setup instead of re-asking forever. The key may echo into the
+    captured output on 8.1 — real terminals on any version stay hidden.
+    """
+    if _click_hidden_eof_safe():
+        if required:
+            while True:
+                key = click.prompt(label, hide_input=True).strip()
+                if key:
+                    return key
+                click.echo("API key 不能为空。")
+        return click.prompt(label, default="", hide_input=True, show_default=False).strip()
+    key = (click.prompt(label, default="", show_default=False) or "").strip()
+    if key or not required:
+        return key
+    raise click.Abort()
+
+
 def _configure_llm(cfg: dict) -> None:
     click.echo("填写服务地址、模型和 API key。可随时切到浏览器复制信息；Ctrl+C 取消，不保存。")
     while True:
@@ -645,12 +680,9 @@ def _configure_llm(cfg: dict) -> None:
             break
         click.echo("模型名称不能为空。")
     if resolve_api_key(cfg):
-        key = click.prompt("API key（隐藏输入；留空保留现有配置）", default="",
-                           hide_input=True, show_default=False).strip()
+        key = _prompt_key("API key（隐藏输入；留空保留现有配置）", required=False)
     else:
-        key = ""
-        while not key:
-            key = click.prompt("API key（隐藏输入）", hide_input=True).strip()
+        key = _prompt_key("API key（隐藏输入）", required=True)
     cfg["llm"]["base_url"] = base_url
     cfg["llm"]["model"] = model
     if key:

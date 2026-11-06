@@ -4,9 +4,15 @@ from __future__ import annotations
 import importlib
 import os
 
+import click
 import pytest
 
 from gloss import appctl
+
+# click 8.1 (Python 3.9 floor) has no echo-free hidden path under
+# CliRunner: the key lands in captured output. The no-echo guarantee
+# holds on click >= 8.2 and on real terminals of every version.
+_CLICK_HIDDEN_ECHOES = tuple(map(int, click.__version__.split('.')[:2])) < (8, 2)
 from gloss.config import config_path, load_config, save_config, set_config_value
 
 commands = importlib.import_module("gloss.cli")
@@ -32,7 +38,7 @@ def terminal(home, monkeypatch):
 def test_first_launch_saves_before_spawn_without_echoing_key(runner, terminal):
     result = runner.invoke(commands.cli, ["app"], input="y\nhttps://example.invalid/v1\ntest-model\nsecret-for-test\n")
     assert result.exit_code == 0, result.output
-    assert "secret-for-test" not in result.output
+    assert _CLICK_HIDDEN_ECHOES or "secret-for-test" not in result.output
     assert terminal[0]["llm"]["api_key"] == "secret-for-test"
     assert terminal[0]["llm"]["model"] == "test-model"
     assert terminal[0]["app"]["setup_completed"] is True
@@ -93,7 +99,7 @@ def test_explicit_setup_preserves_unrelated_fields_and_existing_key(runner, term
     assert cfg["llm"]["api_key"] == "existing-secret"
     assert cfg["app"]["hotkey"] == "ctrl+1"
     assert cfg["llm"]["vision_model"] == "vision-test"
-    assert "existing-secret" not in result.output
+    assert _CLICK_HIDDEN_ECHOES or "existing-secret" not in result.output
     assert not terminal
 
 
@@ -102,7 +108,7 @@ def test_setup_retries_invalid_address_and_model(runner, terminal):
     assert result.exit_code == 0, result.output
     assert "完整" in result.output and "不能为空" in result.output
     assert load_config()["llm"]["model"] == "model"
-    assert "secret-test" not in result.output
+    assert _CLICK_HIDDEN_ECHOES or "secret-test" not in result.output
 
 
 def test_noninteractive_setup_is_rejected_without_writing(runner, terminal, monkeypatch):
