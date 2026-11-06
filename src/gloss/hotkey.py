@@ -7,8 +7,8 @@ hotkey press just reloads the page (fresh clipboard prefill) and shows it.
 Esc/✕ hide the window; nothing is ever created or destroyed at press time.
 
 The hotkey spec comes from the same config key as macOS (`app.hotkey`).
-"cmd" is read as the Win key on Windows; Win+G is reserved by the Xbox
-Game Bar, so a failing registration falls back to ctrl+g with a notice.
+Windows defaults directly to Ctrl+G. A failing custom registration falls
+back to Ctrl+G with a notice.
 Ctrl+Alt+Shift+G quits the process.
 """
 
@@ -246,7 +246,7 @@ def _hotkey_loop(raise_errors: bool) -> None:
             console.print(f"[red]✗ {message}[/red]")
             os._exit(1)
         console.print(
-            f"[yellow]配置的热键 {spec!r} 注册失败（Win+G 被 Xbox Game Bar 占用？），"
+            f"[yellow]配置的热键 {spec!r} 注册失败，"
             f"已改用 {FALLBACK_SPEC}（对齐 macOS 的 ⌘G）[/yellow]"
         )
     else:

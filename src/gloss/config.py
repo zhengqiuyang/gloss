@@ -36,9 +36,8 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "port": 7789,
     },
     "app": {
-        # 新装默认 ⌥⌘G：⌘+单键是全局热键，会接管其他应用的「查找下一个」；
-        # 老用户在 config.toml 里写过的自定义组合不受影响
-        "hotkey": "cmd+alt+g",
+        # Use the platform's standard G shortcut on fresh installations.
+        "hotkey": "cmd+g" if sys.platform == "darwin" else "ctrl+g",
         # True: 呼出弹窗即自动查询剪贴板；False: 预填内容，等回车确认
         "auto_lookup": True,
     },
@@ -95,6 +94,10 @@ def load_config() -> Dict[str, Dict[str, Any]]:
         for section, values in stored.items():
             if isinstance(values, dict) and section in cfg:
                 cfg[section].update(values)
+    # Normalize accidentally shipped defaults without rewriting other settings.
+    spec = cfg["app"]["hotkey"]
+    if spec in ("cmd+alt+g", "alt+cmd+g") or (sys.platform == "win32" and spec == "cmd+g"):
+        cfg["app"]["hotkey"] = DEFAULT_CONFIG["app"]["hotkey"]
     return cfg
 
 

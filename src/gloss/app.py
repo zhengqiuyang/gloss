@@ -85,6 +85,7 @@ def _carbon_to_ns_mods(carbon_mods: int) -> int:
     return ns
 
 
+_ACTIVE_CONTROL = None
 _ACTIVE_LOCK = None  # the process-lifetime single-instance mutex, if we hold it
 
 
@@ -131,19 +132,29 @@ def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
 
     spec = load_config()["app"]["hotkey"]
     parsed = parse_hotkey(spec)
-    display = parsed[2] if parsed else "菜单栏"
+    display = parsed[2] if parsed and not no_hotkey else "菜单栏"
     console.print(
         f"[green]📖 gloss 常驻已启动[/green]（菜单栏图标 · {display} 呼出弹窗 · Ctrl+C 退出）"
     )
-    _run_gui(port=port, no_hotkey=no_hotkey, show_on_start=show_on_start)
+    try:
+        _run_gui(port=port, no_hotkey=no_hotkey, show_on_start=show_on_start)
+    finally:
+        _release_app_lock()
 
 
 def _release_app_lock() -> None:
     from . import appctl
 
-    if _ACTIVE_LOCK is not None:
-        _ACTIVE_LOCK.release()
-    appctl.remove_pid()
+    global _ACTIVE_LOCK, _ACTIVE_CONTROL
+    if _ACTIVE_LOCK is None:
+        return
+    # Keep the mutex until all of this owner's records have been removed.
+    if _ACTIVE_CONTROL is not None:
+        _ACTIVE_CONTROL.close()
+        _ACTIVE_CONTROL = None
+    appctl.remove_pid(expected_pid=os.getpid())
+    _ACTIVE_LOCK.release()
+    _ACTIVE_LOCK = None
 
 
 def _sigterm_stop(signum, frame) -> None:
@@ -153,7 +164,9 @@ def _sigterm_stop(signum, frame) -> None:
 
 
 def _run_gui(port: int, no_hotkey: bool, show_on_start: bool) -> None:
+    global _ACTIVE_CONTROL
     import AppKit as A
+    from . import appctl
 
     from .config import load_config
 
@@ -176,7 +189,7 @@ def _run_gui(port: int, no_hotkey: bool, show_on_start: bool) -> None:
         if parsed is None:
             _log(f"hotkey INVALID: {spec!r}")
             console.print(
-                f"[yellow]热键配置 {spec!r} 无法识别（示例: cmd+g / cmd+alt+g / ctrl+1），"
+                f"[yellow]热键配置 {spec!r} 无法识别（示例: cmd+g / ctrl+1），"
                 "先用菜单栏图标呼出。可用 gloss config set app.hotkey 修改。[/yellow]"
             )
         elif not register_hotkey(delegate.togglePanel, spec):
@@ -193,7 +206,7 @@ def _run_gui(port: int, no_hotkey: bool, show_on_start: bool) -> None:
             if parsed[1] == _MOD_MAP["cmd"] and len(spec.split("+")) == 2:
                 console.print(
                     "[yellow]提示: ⌘+单键 是全局热键，gloss 运行期间会接管其他应用里的同款快捷键"
-                    "（如 ⌘G 的“查找下一个”）。想换回来: gloss config set app.hotkey cmd+alt+g[/yellow]"
+                    "（如 ⌘G 的“查找下一个”）。退出 gloss 后恢复[/yellow]"
                 )
 
     if show_on_start:
@@ -201,7 +214,21 @@ def _run_gui(port: int, no_hotkey: bool, show_on_start: bool) -> None:
 
     # NSApp.run() blocks inside native code; make Ctrl+C the hard kill it looks like
     signal.signal(signal.SIGINT, signal.SIG_DFL)
-    app.run()
+    _ACTIVE_CONTROL = appctl.InstanceControl(
+        lambda: app.performSelectorOnMainThread_withObject_waitUntilDone_("terminate:", None, False)
+    )
+    _ACTIVE_CONTROL.start()
+    # Cocoa's native event loop otherwise postpones Python signal handlers
+    # indefinitely while idle, including launchd's SIGTERM during bootout.
+    import Foundation as F
+    signal_timer = F.NSTimer.scheduledTimerWithTimeInterval_repeats_block_(
+        0.2, True, lambda timer: None
+    )
+    try:
+        app.run()
+    finally:
+        signal_timer.invalidate()
+        _release_app_lock()
 
 
 def _build_delegate_class():

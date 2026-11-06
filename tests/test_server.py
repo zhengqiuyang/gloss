@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import sys
 
 from gloss import db
 
@@ -143,7 +144,7 @@ def test_config_get_masks_key_and_reports_defaults(server_url, home):
     assert status == 200
     cfg = json.loads(data)
     assert cfg["auto_lookup"] is True
-    assert cfg["hotkey"] == "cmd+alt+g"  # 新装默认 ⌥⌘G
+    assert cfg["hotkey"] == ("cmd+g" if sys.platform == "darwin" else "ctrl+g")
     assert cfg["api_key"] == ""
 
 

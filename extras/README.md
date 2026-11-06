@@ -25,8 +25,7 @@ Esc 关窗回到阅读。应用自带常驻服务，不需要再跑 `gloss serve
 Windows 上对应的是 `gloss hotkey`（Ctrl+G 呼出无边框卡片 + 托盘常驻）。
 
 > 全局热键是系统级注册：gloss 运行期间 ⌘G / Ctrl+G 会被它接管（浏览器「查找下一个」
-> 会落到 gloss）。介意就换组合：macOS `gloss config set app.hotkey alt+cmd+g`（⌥⌘G）、
-> Windows `gloss config set app.hotkey ctrl+alt+g`。
+> 会落到 gloss）。默认保持 macOS ⌘G、Windows Ctrl+G；退出 gloss 后恢复其它应用的行为。
 
 ## L0 · 命令打到最短（必做，1 分钟）
 
@@ -125,10 +124,8 @@ macOS `gloss app` 的浮窗同源；剪贴板里的文字或 `Win+Shift+S` 截�
 gloss config set app.hotkey ctrl+alt+g
 ```
 
-> 注意 `app.hotkey` 里的 `cmd`（macOS 的 ⌘）在 Windows 上读作 Win 键，
-> 而 `Win+G` 被 Xbox Game Bar 占用——配置保持默认 `cmd+g` 时，注册失败会
-> 自动回退到 `Ctrl+G`（对齐 ⌘G）并提示；若 Ctrl+G 也被其他软件占用，
-> 换一个组合即可。
+> Windows 新装默认直接注册 Ctrl+G。旧配置中的默认 `cmd+g` 会按 Windows 解析为 Ctrl+G，
+> 不依赖 Win+G 注册失败后的回退。若热键被其它程序占用，会显示注册错误。
 
 ### 无边框弹窗（Chrome --app 的 Windows 版，热键方案的手动版）
 

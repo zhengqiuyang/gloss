@@ -56,7 +56,7 @@ QUIC、MCP。词典里没有的词，它只会沉默——而恰恰是这些词�
 **gloss 给生词本换上大模型的心脏。** 复制一个词，敲一下，一张中文卡片立在那里：
 一句话定义、几句人话解释、相关概念。它存在你自己的电脑里——这个词，你只查这一次。
 
-日常用它是一种很轻的习惯：读到生词，复制，⌥⌘G（Mac）或 Ctrl+G（Windows），卡片
+日常用它是一种很轻的习惯：读到生词，复制，⌘G（Mac）或 Ctrl+G（Windows），卡片
 浮出来，顺手点走一个相关的概念，Esc 回去继续读。`gloss review` 每周把你这一周
 的页边注翻回来——"刚才查了什么来着"，从此是它替你记着。`gloss stats` 里有一个
 省 token 的粗略估算（按"如果每次都现查要花多少"计）。`gloss export` 随时把整本
@@ -145,14 +145,14 @@ DeepSeek、GLM、Ollama（本地、免费）……只要是 OpenAI 兼容接口�
 
 | 平台 | 日常形态 |
 |---|---|
-| macOS | `gloss app` 菜单栏常驻（默认后台运行，终端可以关）；**⌥⌘G** 呼出浮窗（`⌘⇧⌃4` 截图直接解析）；`gp` 一键收录；`gloss paste --notify` 通知模式 |
+| macOS | `gloss app` 菜单栏常驻（默认后台运行，终端可以关）；**⌘G** 呼出浮窗（`⌘⇧⌃4` 截图直接解析）；`gp` 一键收录；`gloss paste --notify` 通知模式 |
 | Windows | `gloss hotkey` 托盘常驻，**Ctrl+G** 呼出无边框卡片（`Win+Shift+S` 截图同理） |
 | 全平台 | `echo "一段话" \| gloss` 消化成摘要卡；`gloss tr` 翻译剪贴板；`gloss serve` 网页弹窗 + HTTP API；`gloss export` 导出 Obsidian 双链 / JSON 备份 |
 
 默认呼出弹窗即自动查询剪贴板——未收录的词（或截图）会发给你配置的模型服务商。
 想先过目再查？`gloss config set app.auto_lookup false`（或 ⚙ 面板里关掉「自动查询」），
-改为预填后按回车确认，文字与截图都一样。macOS 新装默认 **⌥⌘G**——⌘+单键是全局
-热键，会接管其他应用里的同款快捷键；想换组合：`gloss config set app.hotkey <组合>`。
+改为预填后按回车确认，文字与截图都一样。新安装默认 **Mac ⌘G、Windows Ctrl+G**。
+Windows 直接注册 Ctrl+G，不先尝试 Win+G。自定义组合可用 `gloss config set app.hotkey <组合>`。
 
 热键、Raycast、快捷指令、AutoHotkey 等配方见 [extras/README.md](extras/README.md)。
 
@@ -181,12 +181,12 @@ DeepSeek、GLM、Ollama（本地、免费）……只要是 OpenAI 兼容接口�
 | 核心 CLI——查询/词库/edit/rm/翻译/review/stats/export/`gloss serve`/`gloss demo` | **全平台**（Python 3.9+，运行时依赖仅 click/rich/openai） |
 | `gloss paste`（剪贴板捕获：文字 + 截图） | **macOS & Windows**；Linux 需适配层（见 `src/gloss/clipboard.py`） |
 | `gloss hotkey`（全局热键弹窗 + 托盘） | **仅 Windows**——WebView2 无边框卡片；macOS 对应能力是 `gloss app` |
-| `gloss app`（菜单栏 + ⌥⌘G 浮窗，后台/自启） | **仅 macOS**——依赖 pyobjc、Carbon 热键 |
+| `gloss app`（菜单栏 + ⌘G 浮窗，后台/自启） | **仅 macOS**——依赖 pyobjc、Carbon 热键 |
 
 <a id="roadmap"></a>
 ## Roadmap
 
-- [x] 零打字捕获：`gloss paste` + 全局热键（macOS ⌥⌘G / Windows Ctrl+G）
+- [x] 零打字捕获：`gloss paste` + 全局热键（macOS ⌘G / Windows Ctrl+G）
 - [x] 本地 Web 弹窗 + HTTP API（`gloss serve`，一切未来入口的底座）
 - [x] 菜单栏应用（macOS）/ 托盘无边框卡片（Windows）
 - [ ] 本地 embedding 语义搜索（按意思找卡片）

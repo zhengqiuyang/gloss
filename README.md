@@ -62,7 +62,7 @@ a key, and a card appears: a one-line definition, a few sentences of plain
 explanation, related concepts. It lives on your own machine — and you will
 never look this word up again.
 
-Daily use is a light habit: hit an unfamiliar term, copy, ⌥⌘G (Mac) or
+Daily use is a light habit: hit an unfamiliar term, copy, ⌘G (Mac) or
 Ctrl+G (Windows), the card floats up, click a related concept to take it
 with you, Esc back to reading. `gloss review` flips your week's margin notes
 back in front of you — "what was it I looked up?" is now its job, not yours.
@@ -164,7 +164,7 @@ reading**:
 
 | Platform | Daily shape |
 |---|---|
-| macOS | `gloss app` lives in the menu bar (background by default — closing the terminal is fine); **⌥⌘G** pops the floating card (`⌘⇧⌃4` screenshots get parsed too); `gp` for one-key capture; `gloss paste --notify` for notification mode |
+| macOS | `gloss app` lives in the menu bar (background by default — closing the terminal is fine); **⌘G** pops the floating card (`⌘⇧⌃4` screenshots get parsed too); `gp` for one-key capture; `gloss paste --notify` for notification mode |
 | Windows | `gloss hotkey` lives in the tray; **Ctrl+G** pops a frameless card (`Win+Shift+S` screenshots likewise) |
 | Everywhere | `echo "a passage" \| gloss` digests it into a snippet card; `gloss tr` translates the clipboard; `gloss serve` is a local web popup + HTTP API; `gloss export` writes Obsidian wikilinks / JSON backups |
 
@@ -172,9 +172,9 @@ By default, popping the card auto-queries whatever is in the clipboard — an
 uncached term (or screenshot) is sent to the model provider you configured.
 Prefer a beat of confirmation? `gloss config set app.auto_lookup false` (or
 the ⚙ panel) switches to prefill-then-Enter, text and screenshots alike.
-New installs default to **⌥⌘G** on macOS, since ⌘+single-key hotkeys take
-over that shortcut in every other app; change it with `gloss config set
-app.hotkey <combo>`.
+New installs default to **⌘G on macOS** and **Ctrl+G on Windows**.
+Windows registers Ctrl+G directly; it does not first try Win+G.
+Explicit custom shortcuts use `gloss config set app.hotkey <combo>`.
 
 Hotkey, Raycast, Shortcuts and AutoHotkey recipes live in
 [extras/README.md](extras/README.md).
@@ -206,12 +206,12 @@ model changes need an app restart to take effect.
 | Core CLI — lookup, glossary, edit/rm, translate, review, stats, export, `gloss serve`, `gloss demo` | **Cross-platform** (any Python 3.9+; runtime deps only click/rich/openai) |
 | `gloss paste` (clipboard capture: text + screenshots) | **macOS & Windows**; Linux needs adapters (see `src/gloss/clipboard.py`) |
 | `gloss hotkey` (global-hotkey popup + tray) | **Windows only** — frameless WebView2 card; the macOS counterpart is `gloss app` |
-| `gloss app` (menu bar + ⌥⌘G popup, background/autostart) | **macOS only** — pyobjc, Carbon hotkey |
+| `gloss app` (menu bar + ⌘G popup, background/autostart) | **macOS only** — pyobjc, Carbon hotkey |
 
 <a id="roadmap"></a>
 ## Roadmap
 
-- [x] Zero-typing capture: `gloss paste` + global hotkeys (⌥⌘G on macOS, Ctrl+G on Windows)
+- [x] Zero-typing capture: `gloss paste` + global hotkeys (⌘G on macOS, Ctrl+G on Windows)
 - [x] Local web popup + HTTP API (`gloss serve` — the base for every future surface)
 - [x] Menu-bar app (macOS) / tray frameless card (Windows)
 - [ ] Semantic search with local embeddings

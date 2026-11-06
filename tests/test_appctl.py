@@ -40,11 +40,11 @@ def test_is_running_is_safe_and_accurate(home):
     assert appctl.is_running(os.getpid()) is True
 
 
-def test_running_instance_cleans_stale_pid(home, monkeypatch):
+def test_running_instance_does_not_delete_unowned_pid(home, monkeypatch):
     appctl.write_pid(999999999)
     monkeypatch.setattr(appctl, "is_running", lambda pid: False)
     assert appctl.running_instance() is None
-    assert appctl.read_pid() is None  # 陈旧 pid 文件被顺手清掉
+    assert appctl.read_pid() == 999999999  # 观察者不删除不属于自己的记录
 
 
 # -- LaunchAgent payload ------------------------------------------------------
@@ -64,6 +64,15 @@ def test_launchd_plist_roundtrips(home):
 
 
 def test_install_remove_startup_roundtrip(home, tmp_path, monkeypatch):
+    loaded = {"value": False}
+    monkeypatch.setattr(appctl, "startup_loaded", lambda: loaded["value"])
+    def launchctl(action, *args):
+        if action in ("bootstrap", "load"):
+            loaded["value"] = True
+        elif action == "bootout":
+            loaded["value"] = False
+        return True, ""
+    monkeypatch.setattr(appctl, "_launchctl", launchctl)
     _isolate_home(monkeypatch, tmp_path)
     assert appctl.startup_installed() is False
     path = appctl.install_startup()
@@ -126,7 +135,8 @@ def test_spawn_forwards_flags_to_child(home, monkeypatch):
         def poll(self):
             return None
 
-    monkeypatch.setattr(appctl, "running_instance", lambda: None)
+    pids = iter([None, 4321])
+    monkeypatch.setattr(appctl, "running_instance", lambda: next(pids))
     monkeypatch.setattr(appctl.time, "sleep", lambda s: None)
     monkeypatch.setattr(
         appctl.subprocess, "Popen",
@@ -139,34 +149,30 @@ def test_spawn_forwards_flags_to_child(home, monkeypatch):
 # -- --stop 的身份校验（P1）：pid 被复用时绝不向陌生进程发信号 ----------------
 
 
-def test_pid_identity_check(home, monkeypatch):
-    monkeypatch.setattr(
-        appctl, "_process_command",
-        lambda pid: "/usr/bin/python3 -m gloss app --foreground --hidden",
-    )
-    assert appctl.pid_is_gloss(123) is True
-    monkeypatch.setattr(appctl, "_process_command", lambda pid: "/usr/sbin/cron")
-    assert appctl.pid_is_gloss(123) is False
-    monkeypatch.setattr(appctl, "_process_command", lambda pid: "")
-    assert appctl.pid_is_gloss(123) is False
-    assert appctl.pid_is_gloss(None) is False
+def test_pid_identity_check_requires_authenticated_endpoint(home):
+    control = appctl.InstanceControl(lambda: None)
+    control.start()
+    try:
+        assert appctl.pid_is_gloss(os.getpid()) is True
+        assert appctl.pid_is_gloss(os.getpid() + 1) is False
+        assert appctl.pid_is_gloss(None) is False
+    finally:
+        control.close()
+    assert appctl.pid_is_gloss(os.getpid()) is False
 
 
 def test_stop_refuses_unidentified_pid(home, monkeypatch):
-    """纵深防御：即使 running_instance 放行（两次检查之间身份翻转），
-    stop 发信号前仍要确认身份，否则拒绝并清理悬空记录。"""
     appctl.write_pid(os.getpid())
-    monkeypatch.setattr(appctl, "running_instance", lambda: os.getpid())
-    monkeypatch.setattr(appctl, "pid_is_gloss", lambda pid: False)
-    with pytest.raises(GlossError) as exc:
+    signals = []
+    monkeypatch.setattr(appctl.os, "kill", lambda *args: signals.append(args))
+    with pytest.raises(GlossError, match="拒绝"):
         appctl.stop()
-    assert "拒绝" in str(exc.value)
-    assert appctl.read_pid() is None  # 悬空记录清理，且没有杀任何进程
+    assert all(sig == 0 for _, sig in signals)
+    assert appctl.read_pid() == os.getpid()
 
 
-def test_running_instance_ignores_foreign_pid(home, monkeypatch):
+def test_running_instance_ignores_foreign_pid(home):
     appctl.write_pid(os.getpid())
-    monkeypatch.setattr(appctl, "pid_is_gloss", lambda pid: False)
     assert appctl.running_instance() is None
 
 
@@ -189,15 +195,14 @@ def test_launchctl_reports_nonzero_exit(home, monkeypatch):
 
 def test_install_startup_reports_load_failure(home, tmp_path, monkeypatch):
     _isolate_home(monkeypatch, tmp_path)
-    real_platform = sys.platform
     monkeypatch.setattr(sys, "platform", "darwin")  # 让 bootstrap 路径真正执行
+    monkeypatch.setattr(appctl, "startup_loaded", lambda: False)
     monkeypatch.setattr(appctl, "_launchctl", lambda *a: (False, "Load error: 5"))
     with pytest.raises(GlossError) as exc:
         appctl.install_startup()
     assert "加载失败" in str(exc.value) and "5" in str(exc.value)
-    monkeypatch.setattr(sys, "platform", real_platform)  # 恢复真实平台语义
     assert appctl.startup_installed() is True      # plist 已写入
-    assert appctl.startup_loaded() is None         # 非 macOS 查不到加载态
+    assert appctl.startup_installed() is True  # 加载失败仍保留配置供排错
 
 
 # -- CLI surface ---------------------------------------------------------------
@@ -224,7 +229,6 @@ def test_app_startup_rejected_off_mac(runner, home):
     assert "gloss hotkey" in str(result.exception)  # 指到 Windows 的对应能力
 
 
-@pytest.mark.skipif(sys.platform == "darwin", reason="真实 mac 上应实测 bootout 行为")
 def test_app_no_startup_reports_instance_fate(runner, home, monkeypatch):
     from gloss import appctl as appctl_mod
 
@@ -232,13 +236,13 @@ def test_app_no_startup_reports_instance_fate(runner, home, monkeypatch):
     monkeypatch.setattr(appctl_mod, "remove_startup", lambda: True)
     monkeypatch.setattr(appctl_mod, "running_instance", lambda: 42)
     # launchd 托管的实例随 bootout 停止 → 如实告知 + 重启指引
-    monkeypatch.setattr(appctl_mod, "is_running", lambda pid: False)
+    monkeypatch.setattr(appctl_mod, "pid_is_gloss", lambda pid: False)
     result = runner.invoke(cli, ["app", "--no-startup"])
     assert result.exit_code == 0, result.output
-    assert "随服务卸载停止" in result.output
+    assert "当前实例已退出" in result.output
     assert "gloss app" in result.output
     # 手动启动的实例则承诺继续运行
-    monkeypatch.setattr(appctl_mod, "is_running", lambda pid: True)
+    monkeypatch.setattr(appctl_mod, "pid_is_gloss", lambda pid: True)
     result = runner.invoke(cli, ["app", "--no-startup"])
     assert result.exit_code == 0, result.output
-    assert "继续运行" in result.output
+    assert "仍在运行" in result.output

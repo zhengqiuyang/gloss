@@ -799,20 +799,32 @@ async function loadSettings() {
   }
 }
 
+let settingsSaving = false;
 document.getElementById("ssave").addEventListener("click", async () => {
+  if (settingsSaving) return;
+  const inputs = {};
+  const submitted = {};
+  const autoInput = document.getElementById("set-auto_lookup");
+  const saveButton = document.getElementById("ssave");
   const payload = { auto_lookup: document.getElementById("set-auto_lookup").checked };
   let blocked = "";
   ["base_url", "model", "vision_model", "hotkey", "language"].forEach(k => {
     const input = document.getElementById("set-" + k);
+    inputs[k] = input;
     const now = input.value.trim();
+    submitted[k] = now;
     const before = (input.dataset.pristine || "").trim();
     if (now === before) return;  // 没改就不提交
     if (!now && (k === "base_url" || k === "model")) blocked = "服务地址和文字模型不能清空";
     payload[k] = now;            // 改过就提交——清空也是一次修改
   });
   if (blocked) { smsg.textContent = "✗ " + blocked; return; }
-  const key = document.getElementById("set-api_key").value.trim();
+  const keyInput = document.getElementById("set-api_key");
+  const key = keyInput.value.trim();
   if (key) payload.api_key = key;  // API key 留空 = 不改动已保存的
+  settingsSaving = true;
+  saveButton.setAttribute("aria-busy", "true");
+  smsg.textContent = "保存中…";
   try {
     const d = await (await fetch("/api/config", {
       method: "POST",
@@ -820,10 +832,35 @@ document.getElementById("ssave").addEventListener("click", async () => {
       body: JSON.stringify(payload)
     })).json();
     if (d.error) { smsg.textContent = "✗ " + d.error; return; }
-    NO_KEY = false;
-    smsg.textContent = "✓ 已保存" + (payload.api_key ? "（key 已明文写入 ~/.gloss/config.toml）" : "");
+    // The server response is the saved baseline. Preserve drafts typed while
+    // awaiting it, including drafts in a reopened settings panel.
+    Object.keys(inputs).forEach(k => {
+      const input = document.getElementById("set-" + k);
+      if (!input) return;
+      const saved = String(d.config[k] ?? "");
+      if (input === inputs[k] && input.value.trim() === submitted[k]) input.value = saved;
+      input.dataset.pristine = saved;
+    });
+    if (document.getElementById("set-auto_lookup") === autoInput
+        && autoInput.checked === payload.auto_lookup) {
+      autoInput.checked = !!d.config.auto_lookup;
+    }
+    if (document.getElementById("set-api_key") === keyInput) {
+      if (keyInput.value.trim() === key) keyInput.value = "";
+      keyInput.placeholder = d.config.api_key || "sk-…（已保存的会打码）";
+    }
+    NO_KEY = !d.config.has_api_key;
+    const hasDraft = Object.keys(inputs).some(k =>
+      document.getElementById("set-" + k).value.trim() !== String(d.config[k] ?? ""))
+      || document.getElementById("set-api_key").value.trim() !== ""
+      || document.getElementById("set-auto_lookup").checked !== !!d.config.auto_lookup;
+    smsg.textContent = "✓ 已保存" + (payload.api_key ? "（key 已明文写入 ~/.gloss/config.toml）" : "")
+      + (hasDraft ? "；仍有未保存修改" : "");
   } catch (e) {
     smsg.textContent = "保存失败: " + e;
+  } finally {
+    settingsSaving = false;
+    saveButton.removeAttribute("aria-busy");
   }
 });
 

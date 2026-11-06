@@ -10,7 +10,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Iterable, List, Optional, Tuple
 
-from .models import Card, now_iso, norm_term
+from .models import Card, jdump, now_iso, norm_term
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cards (
@@ -101,38 +101,40 @@ def connect() -> sqlite3.Connection:
         _fts_enabled = True
     except sqlite3.OperationalError:
         _fts_enabled = False
-    _migrate_mentions_model(_conn)
+    try:
+        _migrate_mentions_model(_conn)
+    except Exception:
+        _conn.close()
+        _conn = None
+        raise
     return _conn
 
 
 def _migrate_mentions_model(conn: sqlite3.Connection) -> None:
-    """One-time upgrade for glossaries created by older builds.
+    """Restore missing legacy declarations without inventing reverse mentions.
 
-    Old builds consumed resolved names off related_names, so links existed
-    without their declaring mentions. The replace/refresh pruner relies on
-    those declarations and would drop still-meaningful old links. Restore
-    each link's declaration from the link itself, then stamp the marker.
+    Keep either existing direction intact. Only links with no declaration on
+    either side need conservative reconstruction; their original direction
+    is unknown, so retain both. Already-stamped libraries are left untouched:
+    genuine reciprocal mentions cannot be distinguished from earlier repairs.
     """
-    row = conn.execute(
-        "SELECT value FROM meta WHERE key = 'mentions_model'"
-    ).fetchone()
-    if row is not None:
-        return  # already on the mention-list model
-    for link in conn.execute("SELECT card_a, card_b FROM links").fetchall():
-        a = _card_or_none(conn, link["card_a"])
-        b = _card_or_none(conn, link["card_b"])
-        if a is None or b is None:
-            continue
-        if not _mentions(a, b.id):
-            a.related_names = a.related_names + [b.term]
-            update_card(a)
-        if not _mentions(b, a.id):
-            b.related_names = b.related_names + [a.term]
-            update_card(b)
-    conn.execute(
-        "INSERT INTO meta (key, value) VALUES ('mentions_model', '2')"
-    )
-    conn.commit()
+    if conn.execute("SELECT 1 FROM meta WHERE key = 'mentions_model'").fetchone():
+        return
+    with conn:
+        conn.execute("BEGIN IMMEDIATE")
+        # Another process may have completed the migration while we waited.
+        if conn.execute("SELECT 1 FROM meta WHERE key = 'mentions_model'").fetchone():
+            return
+        for link in conn.execute("SELECT card_a, card_b FROM links").fetchall():
+            a = _card_or_none(conn, link["card_a"])
+            b = _card_or_none(conn, link["card_b"])
+            if a is None or b is None or _mentions(a, b.id) or _mentions(b, a.id):
+                continue
+            for card, other in ((a, b), (b, a)):
+                # Update only mentions, preserving aliases and edit history.
+                conn.execute("UPDATE cards SET related_names = ? WHERE id = ?",
+                             (jdump(card.related_names + [other.term]), card.id))
+        conn.execute("INSERT INTO meta (key, value) VALUES ('mentions_model', '3')")
 
 
 def _card_or_none(conn: sqlite3.Connection, card_id: int) -> Optional[Card]:

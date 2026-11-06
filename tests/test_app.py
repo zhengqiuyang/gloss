@@ -34,7 +34,7 @@ def test_parse_hotkey_variants():
     from gloss import app
 
     assert app.parse_hotkey("cmd+g") == (0x05, 0x0100, "⌘G")
-    assert app.parse_hotkey("cmd+alt+g") == (0x05, 0x0900, "⌘⌥G")
+    assert app.parse_hotkey("ctrl+shift+r") == (0x0F, 0x1200, "⌃⇧R")
     assert app.parse_hotkey("ctrl+1")[0] == 0x12
     assert app.parse_hotkey("shift+r") == (0x0F, 0x0200, "⇧R")
     # 无修饰键 / 非法键 / 未知修饰 → None
@@ -44,11 +44,11 @@ def test_parse_hotkey_variants():
     assert app.parse_hotkey("") is None
 
 
-def test_config_default_hotkey_is_alt_cmd_g(home):
-    """新装默认 ⌥⌘G：⌘+单键会接管其他应用的「查找下一个」（老用户自定义不受影响）。"""
+def test_config_default_hotkey_matches_platform(home):
+    """新装默认 Mac ⌘G，Windows Ctrl+G。"""
     from gloss.config import load_config
 
-    assert load_config()["app"]["hotkey"] == "cmd+alt+g"
+    assert load_config()["app"]["hotkey"] == ("cmd+g" if sys.platform == "darwin" else "ctrl+g")
 
 
 def test_config_auto_lookup_defaults_on_and_parses_bool(home):

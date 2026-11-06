@@ -188,3 +188,91 @@ def test_update_card_rewrites_aliases(home):
 
 def test_norm_term_normalizes_whitespace_and_case():
     assert norm_term("  Retrieval   AUGMENTED ") == "retrieval augmented"
+
+
+def test_upgrade_preserves_one_way_declaration_then_allows_removal(home):
+    from gloss.ingest import patch_card
+
+    a = make_card('A', related_names=['B'])
+    b = make_card('B')
+    db.resolve_related(a)
+    db.connect().execute("DELETE FROM meta WHERE key = 'mentions_model'")
+    db.connect().commit()
+    db.close()
+
+    a = db.get_card('A')
+    b = db.get_card('B')
+    assert a.related_names == ['B']
+    assert b.related_names == []  # Migration must not invent B -> A.
+    patch_card(a, related=[])
+    assert not db.has_link(a.id, b.id)
+
+
+def test_upgrade_keeps_alias_based_direction_and_other_pending_names(home):
+    from gloss.ingest import patch_card
+
+    a = make_card('A', aliases=['alias A'])
+    b = make_card('B', related_names=['ALIAS A', 'not yet collected'])
+    db.resolve_related(b)
+    db.connect().execute("DELETE FROM meta WHERE key = 'mentions_model'")
+    db.connect().commit()
+    db.close()
+
+    a, b = db.get_card('A'), db.get_card('B')
+    assert a.related_names == []
+    assert b.related_names == ['ALIAS A', 'not yet collected']
+    assert db.get_meta('mentions_model') == '3'
+    patch_card(b, related=['not yet collected'])
+    assert not db.has_link(a.id, b.id)
+    db.close()
+    assert db.get_card('B').related_names == ['not yet collected']
+    assert not db.has_link(a.id, b.id)
+
+
+def test_upgrade_keeps_genuine_reciprocal_mentions(home):
+    a = make_card('A', related_names=['B'])
+    b = make_card('B', related_names=['A'])
+    db.resolve_related(a)
+    db.connect().execute("DELETE FROM meta WHERE key = 'mentions_model'")
+    db.connect().commit()
+    db.close()
+    assert db.get_card('A').related_names == ['B']
+    assert db.get_card('B').related_names == ['A']
+    assert db.has_link(a.id, b.id)
+
+
+def test_already_migrated_v2_is_not_destructively_reinterpreted(home):
+    a = make_card('A', related_names=['B'])
+    b = make_card('B', related_names=['A'])
+    db.resolve_related(a)
+    db.set_meta('mentions_model', '2')
+    db.close()
+    assert db.get_card('A').related_names == ['B']
+    assert db.get_card('B').related_names == ['A']
+    assert db.get_meta('mentions_model') == '2'
+    assert db.has_link(a.id, b.id)
+
+
+def test_failed_upgrade_rolls_back_mentions_and_marker_and_can_retry(home):
+    import sqlite3
+    import pytest
+    from gloss.config import db_path
+
+    a, b = make_card('A'), make_card('B')
+    db.add_link(a.id, b.id)
+    conn = db.connect()
+    conn.execute("DELETE FROM meta WHERE key = 'mentions_model'")
+    conn.execute("""CREATE TRIGGER fail_migration BEFORE UPDATE ON cards
+                    WHEN old.term = 'B' BEGIN SELECT RAISE(ABORT, 'test failure'); END""")
+    conn.commit()
+    db.close()
+    with pytest.raises(sqlite3.IntegrityError, match='test failure'):
+        db.connect()
+    assert db._conn is None
+    with sqlite3.connect(db_path()) as inspect:
+        assert inspect.execute('SELECT related_names FROM cards ORDER BY id').fetchall() == [('[]',), ('[]',)]
+        assert inspect.execute("SELECT value FROM meta WHERE key = 'mentions_model'").fetchone() is None
+        inspect.execute('DROP TRIGGER fail_migration')
+    assert db.get_card('A').related_names == ['B']
+    assert db.get_card('B').related_names == ['A']
+    assert db.get_meta('mentions_model') == '3'
