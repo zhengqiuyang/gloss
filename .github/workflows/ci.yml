@@ -11,7 +11,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # ubuntu-latest migrated to Ubuntu 26.04 (2026-10), where setup-python
+        # no longer provisions 3.9 — pin 24.04 so the full 3.9-3.13 matrix runs.
+        os: [ubuntu-24.04, macos-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
