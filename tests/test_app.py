@@ -64,3 +64,48 @@ def test_config_auto_lookup_defaults_on_and_parses_bool(home):
 @pytest.fixture
 def runner_env(home):
     yield home
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="native NSPanel geometry requires macOS")
+def test_native_drag_and_resize_regions_stay_at_window_edges():
+    A = pytest.importorskip("AppKit")
+    F = pytest.importorskip("Foundation")
+    pytest.importorskip("WebKit")
+    from gloss import app
+
+    A.NSApplication.sharedApplication()
+    delegate = app._build_delegate_class().alloc().init()
+    delegate.buildUI()
+    panel = delegate.panel
+    try:
+        content = panel.contentView()
+        strip = next(v for v in content.subviews() if type(v).__name__ == "DragStrip")
+        grip = next(v for v in content.subviews() if type(v).__name__ == "ResizeGrip")
+        assert strip.toolTip()
+        # Exercise the real Cocoa drawing API without displaying a user window.
+        image = A.NSImage.alloc().initWithSize_(strip.bounds().size)
+        image.lockFocus()
+        try:
+            strip.drawRect_(strip.bounds())
+        finally:
+            image.unlockFocus()
+        for width, height in ((500, 380), (720, 650), (420, 320)):
+            panel.setContentSize_(F.NSSize(width, height))
+            bounds = content.bounds()
+            move = strip.frame()
+            resize = grip.frame()
+            assert move.size.height >= 28, f"invisible/narrow drag region: {move}"
+            assert move.size.height <= 40, f"drag region stretched over form: {move}"
+            assert abs(move.origin.y + move.size.height - bounds.size.height) < 1
+            assert abs(move.size.width - bounds.size.width) < 1
+            assert abs(resize.origin.x + resize.size.width - bounds.size.width) < 1
+            assert resize.origin.y == 0 and resize.size.height == 18
+            # Cocoa routes a press on the header to the native drag handler,
+            # while the body remains available to the WebKit settings form.
+            assert content.hitTest_((width / 2, height - 10)) == strip
+            assert content.hitTest_((width / 2, height - 60)) not in (strip, grip)
+            assert content.hitTest_((width - 8, 8)) == grip
+    finally:
+        panel.orderOut_(None)
+        A.NSStatusBar.systemStatusBar().removeStatusItem_(delegate.status_item)
+        F.NSNotificationCenter.defaultCenter().removeObserver_(delegate)

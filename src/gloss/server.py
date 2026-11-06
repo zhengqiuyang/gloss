@@ -328,7 +328,7 @@ _PAGE = """<!doctype html>
       light-dark(rgba(236,238,245,.88), rgba(20,20,24,.86));
   }
   .app { max-width: 720px; margin: 0 auto; padding: 12px 12px 16px; }
-  body.glass .app { padding-top: 20px; }  /* 顶部留出原生拖动带 */
+  body.glass .app { padding-top: 44px; }  /* 34px 原生标题条 + 10px 间距 */
   body.glass .card { box-shadow: none; }
   body.glass .searchbar { box-shadow: none; }
 

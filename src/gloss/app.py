@@ -242,7 +242,7 @@ def _build_delegate_class():
             return True  # floating panels need this for webview text input
 
     class DragStrip(A.NSView):
-        """Slim native strip along the top edge: drag it to move the window."""
+        """Visible, fixed-height header: WebKit handles the form below it."""
 
         def isFlipped(self):
             return False
@@ -252,6 +252,22 @@ def _build_delegate_class():
 
         def mouseDown_(self, event):
             self.window().performDrag_(event)
+
+        def resetCursorRects(self):
+            self.addCursorRect_cursor_(self.bounds(), A.NSCursor.openHandCursor())
+
+        def drawRect_(self, rect):
+            bounds = self.bounds()
+            A.NSColor.separatorColor().setFill()
+            A.NSRectFill(F.NSMakeRect(12, 0, bounds.size.width - 24, 1))
+            title = F.NSString.stringWithString_("gloss · 拖动移动")
+            title.drawInRect_withAttributes_(
+                F.NSMakeRect(16, 9, bounds.size.width - 32, 16),
+                {
+                    A.NSFontAttributeName: A.NSFont.systemFontOfSize_(11),
+                    A.NSForegroundColorAttributeName: A.NSColor.secondaryLabelColor(),
+                },
+            )
 
     class ResizeGrip(A.NSView):
         """Bottom-right grip: drag to resize the panel."""
@@ -380,14 +396,16 @@ def _build_delegate_class():
             # native move/resize affordances on top of the webview
             panel.setMinSize_(F.NSSize(380, 300))
             strip = DragStrip.alloc().initWithFrame_(
-                F.NSMakeRect(0, 380 - 16, 500, 16)
+                F.NSMakeRect(0, 380 - 34, 500, 34)
             )
-            strip.setAutoresizingMask_(2 | 16)  # flexible width, pinned to top
+            strip.setAutoresizingMask_(A.NSViewWidthSizable | A.NSViewMinYMargin)
+            strip.setToolTip_("拖动这里移动窗口 / Drag to move")
+            strip.setAccessibilityLabel_("移动 gloss 窗口")
             panel.contentView().addSubview_(strip)
             grip = ResizeGrip.alloc().initWithFrame_(
                 F.NSMakeRect(500 - 18, 0, 18, 18)
             )
-            grip.setAutoresizingMask_(4 | 16)  # pinned to bottom-right
+            grip.setAutoresizingMask_(A.NSViewMinXMargin | A.NSViewMaxYMargin)
             panel.contentView().addSubview_(grip)
 
             self.panel = panel
