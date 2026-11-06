@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
+from urllib.parse import urlsplit
 
 import click
 
@@ -15,6 +17,8 @@ from .config import (
     mask_config,
     set_config_value,
     gloss_home,
+    resolve_api_key,
+    save_config,
 )
 from .export import export_json, export_markdown
 from .models import GlossError
@@ -232,14 +236,25 @@ def app_cmd(no_hotkey: bool, hidden: bool, foreground: bool,
             ui.console.print("[dim]本来就没有登录自启。[/dim]")
         return
 
+    _require_darwin_app()
+    cfg = load_config()
+    if (not hidden and _interactive_terminal()
+            and not cfg["app"].get("setup_completed") and not resolve_api_key(cfg)
+            and appctl.running_instance() is None):
+        click.echo("首次启动：可以先配置大模型服务，也可以跳过、体验离线示例。")
+        if click.confirm("现在配置大模型服务？", default=True):
+            _configure_llm(cfg)
+        else:
+            cfg["app"]["setup_completed"] = True
+            save_config(cfg)
+            click.echo("已跳过配置。之后运行 gloss setup 可配置；离线示例不需要 API key。")
+
     if foreground:
-        _require_darwin_app()
         from .app import run_app
 
         run_app(no_hotkey=no_hotkey, show_on_start=not hidden)
         return
 
-    _require_darwin_app()
     try:
         pid = appctl.spawn_background(hidden=hidden, no_hotkey=no_hotkey)
     except GlossError as exc:
@@ -609,6 +624,52 @@ def config() -> None:
     """查看或修改配置。"""
 
 
+def _interactive_terminal() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _configure_llm(cfg: dict) -> None:
+    click.echo("填写服务地址、模型和 API key。可随时切到浏览器复制信息；Ctrl+C 取消，不保存。")
+    while True:
+        base_url = click.prompt("服务地址", default=cfg["llm"]["base_url"]).strip()
+        try:
+            parsed = urlsplit(base_url)
+            if parsed.scheme in ("http", "https") and parsed.hostname:
+                break
+        except ValueError:
+            pass
+        click.echo("服务地址需要是完整的 http:// 或 https:// URL。")
+    while True:
+        model = click.prompt("文字模型", default=cfg["llm"]["model"]).strip()
+        if model:
+            break
+        click.echo("模型名称不能为空。")
+    if resolve_api_key(cfg):
+        key = click.prompt("API key（隐藏输入；留空保留现有配置）", default="",
+                           hide_input=True, show_default=False).strip()
+    else:
+        key = ""
+        while not key:
+            key = click.prompt("API key（隐藏输入）", hide_input=True).strip()
+    cfg["llm"]["base_url"] = base_url
+    cfg["llm"]["model"] = model
+    if key:
+        cfg["llm"]["api_key"] = key
+    cfg["app"]["setup_completed"] = True
+    save_config(cfg)
+    click.echo("配置已保存；未调用模型。需要重新配置时运行 gloss setup。")
+    if os.environ.get("GLOSS_API_KEY") or os.environ.get("OPENAI_API_KEY"):
+        click.echo("注意：环境变量中的 API key 优先于配置文件中的值。")
+
+
+@cli.command("setup")
+def setup_cmd() -> None:
+    """在终端配置大模型服务，API key 隐藏输入。"""
+    if not _interactive_terminal():
+        raise GlossError("gloss setup 需要交互终端；脚本中可使用 gloss config set。")
+    _configure_llm(load_config())
+
+
 @config.command("show")
 def config_show() -> None:
     cfg = load_config()
@@ -626,7 +687,7 @@ def config_show() -> None:
 def config_set(key: str, value: str) -> None:
     """设置配置项，如 gloss config set llm.model gpt-4o-mini"""
     set_config_value(key, value)
-    click.echo(f"已写入 {key} = {value!r}")
+    click.echo(f"已写入 {key}" if key == "llm.api_key" else f"已写入 {key} = {value!r}")
 
 
 @config.command("path")

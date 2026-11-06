@@ -6,6 +6,8 @@ import http.client
 import json
 import sys
 
+import pytest
+
 from gloss import db
 
 from conftest import http_request as _request
@@ -21,6 +23,25 @@ def test_get_page_contains_input_and_prefill(server_url, monkeypatch):
     html = data.decode("utf-8")
     assert "<input" in html
     assert "QUIC" in html  # clipboard pre-filled
+
+
+@pytest.mark.parametrize("key_source", ["config", "environment"])
+def test_get_page_never_prefills_current_api_key(server_url, monkeypatch, key_source):
+    from gloss import clipboard
+    from gloss.config import set_config_value
+
+    key = "not-a-real-key-clipboard-test"
+    monkeypatch.delenv("GLOSS_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    if key_source == "config":
+        set_config_value("llm.api_key", key)
+    else:
+        monkeypatch.setenv("GLOSS_API_KEY", key)
+    monkeypatch.setattr(clipboard, "read_clipboard", lambda: ("text", " " + key + "\n"))
+    status, _, data = _request(server_url)
+    assert status == 200
+    assert key not in data.decode()
+    assert "已跳过剪贴板中的 API key" in data.decode()
 
 
 def test_glass_param_toggles_body_class(server_url):

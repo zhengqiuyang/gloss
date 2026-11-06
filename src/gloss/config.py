@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -36,6 +37,7 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "port": 7789,
     },
     "app": {
+        "setup_completed": False,
         # Use the platform's standard G shortcut on fresh installations.
         "hotkey": "cmd+g" if sys.platform == "darwin" else "ctrl+g",
         # True: 呼出弹窗即自动查询剪贴板；False: 预填内容，等回车确认
@@ -67,6 +69,7 @@ _CONFIG_SCHEMA = {
     "serve.port": int,
     "app.hotkey": str,
     "app.auto_lookup": _to_bool,
+    "app.setup_completed": _to_bool,
 }
 
 
@@ -104,8 +107,16 @@ def load_config() -> Dict[str, Dict[str, Any]]:
 def save_config(cfg: Dict[str, Dict[str, Any]]) -> None:
     path = config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "wb") as f:
-        tomli_w.dump(cfg, f)
+    # The file can contain credentials. Replace atomically with private mode.
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="wb", dir=path.parent, delete=False) as f:
+            temporary = Path(f.name)
+            tomli_w.dump(cfg, f)
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def resolve_api_key(cfg: Dict[str, Dict[str, Any]]) -> Optional[str]:

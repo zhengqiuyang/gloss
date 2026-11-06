@@ -124,15 +124,22 @@ def make_handler():
             if route.path != "/":
                 return self._json(404, {"error": "not found"})
             glass = "1" in parse_qs(route.query).get("glass", [])
+            cfg = load_config()
             prefill, hint, clip_kind = "", "", "none"
             try:
                 kind, data = clipboard.read_clipboard()
                 clip_kind = kind
                 if kind == "text":
-                    prefill = data
+                    # Setup commonly leaves the copied key in the clipboard.
+                    # Never turn that exact credential into an automatic query.
+                    keys = {cfg["llm"].get("api_key"), resolve_api_key(cfg)} - {None, ""}
+                    if data.strip() in keys:
+                        hint = "已跳过剪贴板中的 API key，请复制要查询的内容。"
+                        clip_kind = "none"
+                    else:
+                        prefill = data
             except GlossError:
                 pass  # empty clipboard: start with an empty input
-            cfg = load_config()
             html = (
                 _PAGE
                 .replace("__PREFILL__", json.dumps(prefill, ensure_ascii=False).replace("</", "<\\/"))
@@ -747,14 +754,20 @@ const settingsEl = document.getElementById("settings");
 const sbody = document.getElementById("sbody");
 const smsg = document.getElementById("smsg");
 document.getElementById("cfgbtn").addEventListener("click", toggleSettings);
-document.getElementById("sclose").addEventListener("click", () => { settingsEl.style.display = "none"; });
+document.getElementById("sclose").addEventListener("click", () => setSettingsOpen(false));
+
+function setSettingsOpen(open) {
+  settingsEl.style.display = open ? "" : "none";
+  // Native settings stay visible when switching apps to copy an API key.
+  window.webkit?.messageHandlers?.glossSettings?.postMessage(open);
+}
 
 async function toggleSettings() {
   if (settingsEl.style.display === "none") {
+    setSettingsOpen(true);
     await loadSettings();
-    settingsEl.style.display = "";
   } else {
-    settingsEl.style.display = "none";
+    setSettingsOpen(false);
   }
 }
 

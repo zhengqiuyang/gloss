@@ -126,6 +126,17 @@ gloss review          # 近 7 天复盘
 
 ## 配置（30 秒，任意 OpenAI 兼容服务）
 
+在 Mac 的交互终端首次运行 `gloss app`，尚未配置 key 时会先询问是否配置。
+按提示填写服务地址、文字模型和 API key，保存后启动后台应用。API key 隐藏输入，
+可切到浏览器复制；取消不会保存，跳过后可体验离线示例。之后需要修改时运行：
+
+```bash
+gloss setup
+```
+
+引导本身不调用模型。已有 key 的用户直接启动；隐藏启动、自启和非交互调用不提问。
+也可逐项设置，但把 key 写在命令参数中会进入终端历史：
+
 ```bash
 gloss config set llm.api_key sk-...
 gloss config set llm.base_url https://api.deepseek.com/v1   # DeepSeek 为例
@@ -137,6 +148,9 @@ DeepSeek、GLM、Ollama（本地、免费）……只要是 OpenAI 兼容接口�
 同一份配置，还带连接测试（会真实调用一次模型，消耗极少量 token）。其他可调项
 （解释语言、详情长度、视觉模型、热键、呼出即查 vs 回车确认）用 `gloss config show`
 查看。配置在 `~/.gloss/config.toml`，词库是同目录的 `gloss.db`。
+Mac 设置面板打开时，切换到浏览器不会隐藏浮窗；再次呼出也保留未保存草稿。
+关闭设置后恢复查词浮窗的失焦隐藏。显式使用菜单栏“重新载入”会重置页面。
+剪贴板文本与已配置的 API key 完全相同时会跳过预填和自动查询；这不是通用密钥识别。
 
 <a id="zero-typing"></a>
 ## 零打字：复制即收录
@@ -169,6 +183,7 @@ Windows 直接注册 Ctrl+G，不先尝试 Win+G。自定义组合可用 `gloss 
 | `gloss app --startup` | 写入登录自启（用户级 LaunchAgent，隐藏启动）并确保在运行 |
 | `gloss app --no-startup` | 取消登录自启——不动词库和配置 |
 | `gloss app --status` / `--stop` | 查看运行状态 / 停止后台实例 |
+| `gloss setup` | 在终端重新配置服务，API key 隐藏输入 |
 
 菜单栏「退出 gloss」是完全退出：不会有东西在背后悄悄把它拉起来——开了自启也是
 下次登录才再启动。热键和模型配置的改动需要重启 gloss app 才生效。

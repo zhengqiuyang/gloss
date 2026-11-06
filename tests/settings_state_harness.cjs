@@ -50,7 +50,9 @@ async function fetch(url, options = {}) {
   }
   return {json:async () => ({ok:true, config:view()})};
 }
-const context = vm.createContext({document, fetch, console, window:{close(){}}});
+const nativeMessages = [];
+const context = vm.createContext({document, fetch, console, window:{close(){},
+  webkit:{messageHandlers:{glossSettings:{postMessage(open){nativeMessages.push(open);}}}}}});
 vm.runInContext(script, context);
 const field = key => nodes.get('set-' + key);
 const click = id => nodes.get(id).handlers.click();
@@ -61,7 +63,15 @@ function delaySave() {
 }
 (async () => {
   await click('cfgbtn');
-  if (scenario === 'serial') {
+  if (scenario === 'native-settings') {
+    assert.deepEqual(nativeMessages, [true]);
+    field('api_key').value = 'unsaved-test-key';
+    assert.equal(nodes.get('settings').style.display, '');
+    await click('sclose');
+    assert.deepEqual(nativeMessages, [true, false]);
+    await click('cfgbtn'); await click('cfgbtn');
+    assert.deepEqual(nativeMessages, [true, false, true, false]);
+  } else if (scenario === 'serial') {
     field('vision_model').value = 'X'; await click('ssave');
     assert.equal(field('vision_model').dataset.pristine, 'X');
     field('vision_model').value = ''; await click('ssave');

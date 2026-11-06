@@ -251,7 +251,7 @@ def _build_delegate_class():
             return True
 
         def mouseDown_(self, event):
-            self.window().performDrag_(event)
+            self.window().performWindowDragWithEvent_(event)
 
         def resetCursorRects(self):
             self.addCursorRect_cursor_(self.bounds(), A.NSCursor.openHandCursor())
@@ -309,6 +309,7 @@ def _build_delegate_class():
         panel = None
         webview = None
         status_item = None
+        settings_open = False
 
         def buildUI(self) -> None:
             # menu bar item
@@ -380,6 +381,7 @@ def _build_delegate_class():
             panel.contentView().addSubview_(effect)
 
             conf = WebKit.WKWebViewConfiguration.alloc().init()
+            conf.userContentController().addScriptMessageHandler_name_(self, "glossSettings")
             try:
                 # 新系统上可能失效（页面自身有玻璃拟态兜底），生效则能透出桌面模糊
                 conf.setValue_forKey_(False, "drawsBackground")
@@ -420,13 +422,17 @@ def _build_delegate_class():
         def showPanel(self) -> None:
             _log("panel show")
             url = F.NSURL.URLWithString_(f"http://127.0.0.1:{self.port}/?glass=1")
-            self.webview.loadRequest_(F.NSURLRequest.requestWithURL_(url))
-            self._position_near_mouse()
+            if not self.settings_open:
+                self.webview.loadRequest_(F.NSURLRequest.requestWithURL_(url))
+                self._position_near_mouse()
             self.panel.makeKeyAndOrderFront_(None)
 
         def togglePanel(self) -> None:
             _log("hotkey triggered -> toggle")
             if self.panel is not None and self.panel.isVisible():
+                if self.settings_open and not self.panel.isKeyWindow():
+                    self.panel.makeKeyAndOrderFront_(None)
+                    return
                 self.panel.orderOut_(None)
                 _log("panel hide")
             else:
@@ -454,13 +460,18 @@ def _build_delegate_class():
             self.showPanel()
 
         def mReload_(self, sender) -> None:
+            self.settings_open = False
             self.showPanel()
 
         # -- window / webview events --------------------------------------
 
         def windowDidResignKey_(self, notification) -> None:
-            if self.panel is not None:
+            if self.panel is not None and not self.settings_open:
                 self.panel.orderOut_(None)
+
+        def userContentController_didReceiveScriptMessage_(self, controller, message):
+            if message.name() == "glossSettings":
+                self.settings_open = bool(message.body())
 
         def webViewDidClose_(self, webview) -> None:
             # the page calls window.close() on Esc

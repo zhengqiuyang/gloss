@@ -67,7 +67,9 @@ def runner_env(home):
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="native NSPanel geometry requires macOS")
-def test_native_drag_and_resize_regions_stay_at_window_edges():
+def test_native_drag_and_resize_regions_stay_at_window_edges(home):
+    import time
+    from types import SimpleNamespace
     A = pytest.importorskip("AppKit")
     F = pytest.importorskip("Foundation")
     pytest.importorskip("WebKit")
@@ -105,6 +107,85 @@ def test_native_drag_and_resize_regions_stay_at_window_edges():
             assert content.hitTest_((width / 2, height - 10)) == strip
             assert content.hitTest_((width / 2, height - 60)) not in (strip, grip)
             assert content.hitTest_((width - 8, 8)) == grip
+
+        # Execute the actual mouse-down callback. Geometry alone missed an
+        # invalid NSWindow selector; intercept only the native drag loop.
+        events = []
+
+        class DragWindowProbe(A.NSPanel):
+            def performWindowDragWithEvent_(self, event):
+                events.append(event)
+
+        probe = DragWindowProbe.alloc().initWithContentRect_styleMask_backing_defer_(
+            F.NSMakeRect(0, 0, 500, 380), A.NSWindowStyleMaskTitled,
+            A.NSBackingStoreBuffered, False,
+        )
+        probe.setReleasedWhenClosed_(False)
+        try:
+            probe.contentView().addSubview_(strip)
+            event = A.NSEvent.mouseEventWithType_location_modifierFlags_timestamp_windowNumber_context_eventNumber_clickCount_pressure_(
+                A.NSEventTypeLeftMouseDown, (20, 15), 0, 0,
+                probe.windowNumber(), None, 1, 1, 1,
+            )
+            strip.mouseDown_(event)
+            assert events == [event]
+        finally:
+            content.addSubview_(strip)
+            probe.orderOut_(None)
+
+        # Exercise WebKit -> native settings messages, not just JS text.
+        delegate.webview.loadHTMLString_baseURL_(
+            "<script>window.webkit.messageHandlers.glossSettings.postMessage(true)</script>", None
+        )
+        deadline = time.monotonic() + 8
+        while not delegate.settings_open and time.monotonic() < deadline:
+            F.NSRunLoop.currentRunLoop().runUntilDate_(F.NSDate.dateWithTimeIntervalSinceNow_(0.02))
+        assert delegate.settings_open, "WebKit did not deliver the settings-open message"
+
+        class WindowProbe:
+            visible = True
+            key = False
+
+            def isVisible(self):
+                return self.visible
+
+            def isKeyWindow(self):
+                return self.key
+
+            def orderOut_(self, sender):
+                self.visible = False
+
+            def makeKeyAndOrderFront_(self, sender):
+                self.visible = True
+                self.key = True
+
+            def frame(self):
+                return F.NSMakeRect(0, 0, 500, 380)
+
+            def setFrameOrigin_(self, point):
+                pass
+
+        real_webview = delegate.webview
+        loads = []
+        state = WindowProbe()
+        delegate.panel = state
+        delegate.webview = SimpleNamespace(loadRequest_=loads.append)
+        try:
+            delegate.windowDidResignKey_(None)
+            assert state.visible  # switching to the browser keeps settings open
+            delegate.togglePanel()
+            assert state.visible and state.key  # hotkey returns focus, not hide
+            delegate.showPanel()
+            assert not loads  # no reload that would discard unsaved API-key text
+            message = SimpleNamespace(name=lambda: "glossSettings", body=lambda: False)
+            delegate.userContentController_didReceiveScriptMessage_(None, message)
+            delegate.windowDidResignKey_(None)
+            assert not state.visible  # lookup mode retains auto-hide
+            delegate.showPanel()
+            assert len(loads) == 1  # lookup mode still refreshes the clipboard
+        finally:
+            delegate.panel = panel
+            delegate.webview = real_webview
     finally:
         panel.orderOut_(None)
         A.NSStatusBar.systemStatusBar().removeStatusItem_(delegate.status_item)

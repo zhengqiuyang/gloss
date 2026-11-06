@@ -12,7 +12,7 @@ from gloss.server import _PAGE
 
 
 @pytest.mark.skipif(shutil.which('node') is None, reason='Node.js is required for JavaScript behavior checks')
-@pytest.mark.parametrize('scenario', ['serial', 'pending-edit', 'reopened', 'reopened-clear', 'failure', 'duplicate', 'key'])
+@pytest.mark.parametrize('scenario', ['serial', 'pending-edit', 'reopened', 'reopened-clear', 'failure', 'duplicate', 'key', 'native-settings'])
 def test_settings_save_state_machine(scenario):
     script = _PAGE.split('<script>', 1)[1].split('</script>', 1)[0]
     for key, value in {'__PREFILL__':'', '__HINT__':'', '__CLIP_KIND__':'none',

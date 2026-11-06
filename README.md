@@ -142,6 +142,19 @@ gloss review          # last 7 days
 
 ## Configure (30 seconds, any OpenAI-compatible API)
 
+On macOS, the first interactive `gloss app` launch without an API key offers
+terminal setup before starting the background app. Enter the service URL,
+model and hidden API key; switching to your browser is safe. Cancel without
+saving, or skip for the offline demo. To configure again:
+
+```bash
+gloss setup
+```
+
+Setup makes no model request. Existing keys, hidden launches, login startup
+and non-interactive invocations bypass the prompt. Individual settings are
+also available below, but a key passed as an argument enters shell history:
+
 ```bash
 gloss config set llm.api_key sk-...
 gloss config set llm.base_url https://api.deepseek.com/v1   # DeepSeek, for example
@@ -155,6 +168,11 @@ switch. Or skip the terminal: the popup's **⚙ settings panel** (from
 language, detail length, vision model, hotkey, query-on-pop vs
 confirm-with-Enter) — see `gloss config show`. Config lives in
 `~/.gloss/config.toml`; the library is `gloss.db` next to it.
+While Mac settings are open, switching apps keeps the panel visible and
+reopening preserves unsaved fields. Closing settings restores lookup-mode
+auto-hide. The explicit Reload menu action resets the page. Clipboard text
+exactly matching a configured API key is excluded from prefill and automatic
+lookup; this is not a general secret detector.
 
 <a id="zero-typing"></a>
 ## Zero typing: copy, then one key
@@ -193,6 +211,7 @@ glossing. There is only ever one instance.
 | `gloss app --startup` | login autostart (user-level LaunchAgent, hidden) + ensures it runs |
 | `gloss app --no-startup` | cancel autostart — library and config untouched |
 | `gloss app --status` / `--stop` | diagnostics / stop the background instance |
+| `gloss setup` | configure the service in the terminal with hidden key input |
 
 Quitting from the menu bar is a full quit: nothing relaunches it behind your
 back — with autostart on, gloss comes back at your next login. Hotkey and
