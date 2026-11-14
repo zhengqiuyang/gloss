@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from gloss import db
-from gloss.models import Card, norm_term
-
 from conftest import make_card
+
+from gloss import db
+from gloss.models import norm_term
 
 
 def test_lookup_by_term_is_case_insensitive(home):
@@ -162,7 +162,7 @@ def test_hit_counter(home):
 
 def test_counts_and_top_hits(home):
     a = make_card("RAG", tokens_used=900)
-    b = make_card("Embedding")
+    make_card("Embedding")
     db.increment_hit(a.id)
     stats = db.counts()
     assert stats["total"] == 2
@@ -255,7 +255,9 @@ def test_already_migrated_v2_is_not_destructively_reinterpreted(home):
 
 def test_failed_upgrade_rolls_back_mentions_and_marker_and_can_retry(home):
     import sqlite3
+
     import pytest
+
     from gloss.config import db_path
 
     a, b = make_card('A'), make_card('B')
@@ -270,8 +272,10 @@ def test_failed_upgrade_rolls_back_mentions_and_marker_and_can_retry(home):
         db.connect()
     assert db._conn is None
     with sqlite3.connect(db_path()) as inspect:
-        assert inspect.execute('SELECT related_names FROM cards ORDER BY id').fetchall() == [('[]',), ('[]',)]
-        assert inspect.execute("SELECT value FROM meta WHERE key = 'mentions_model'").fetchone() is None
+        rows = inspect.execute('SELECT related_names FROM cards ORDER BY id').fetchall()
+        assert rows == [('[]',), ('[]',)]
+        q = "SELECT value FROM meta WHERE key = 'mentions_model'"
+        assert inspect.execute(q).fetchone() is None
         inspect.execute('DROP TRIGGER fail_migration')
     assert db.get_card('A').related_names == ['B']
     assert db.get_card('B').related_names == ['A']

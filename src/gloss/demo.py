@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from . import db
 from .models import Card
 
 META_KEY = "demo_card_ids"
 
-SPEC: List[Dict[str, Any]] = [
+SPEC: list[dict[str, Any]] = [
     {
         "term": "RAG",
         "aliases": ["Retrieval-Augmented Generation", "检索增强生成"],
@@ -107,7 +107,7 @@ SPEC: List[Dict[str, Any]] = [
 ]
 
 
-def seed_demo() -> Tuple[int, int]:
+def seed_demo() -> tuple[int, int]:
     """Insert the sample cards (skipping terms you already have). Returns (added, skipped)."""
     added, skipped = 0, 0
     ids = json.loads(db.get_meta(META_KEY) or "[]")
@@ -133,13 +133,13 @@ def seed_demo() -> Tuple[int, int]:
         ids.append(card.id)
         added += 1
     for s in SPEC:
-        card = db.get_card(s["term"])
-        if card is None:
+        hit = db.get_card(s["term"])
+        if hit is None or hit.id is None:
             continue
         for name in s.get("related", []):
             other = db.get_card(name)
-            if other is not None and other.id != card.id:
-                db.add_link(card.id, other.id)
+            if other is not None and other.id is not None and other.id != hit.id:
+                db.add_link(hit.id, other.id)
     db.set_meta(META_KEY, json.dumps(ids))
     return added, skipped
 

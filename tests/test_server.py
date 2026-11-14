@@ -7,10 +7,9 @@ import json
 import sys
 
 import pytest
+from conftest import http_request as _request
 
 from gloss import db
-
-from conftest import http_request as _request
 
 
 def test_get_page_contains_input_and_prefill(server_url, monkeypatch):
@@ -110,7 +109,10 @@ def test_empty_text_is_400(server_url):
 
 def test_bad_json_is_400(server_url):
     conn = http.client.HTTPConnection(server_url, timeout=30)
-    conn.request("POST", "/api/lookup", body=b"not json", headers={"Content-Type": "application/json"})
+    conn.request(
+        "POST", "/api/lookup", body=b"not json",
+        headers={"Content-Type": "application/json"},
+    )
     resp = conn.getresponse()
     assert resp.status == 400
     conn.close()
@@ -159,7 +161,7 @@ def test_api_image_without_image_is_400(server_url, fake_llm, monkeypatch):
 
 
 def test_config_get_masks_key_and_reports_defaults(server_url, home):
-    from gloss.cli import cli as _  # noqa: F401  (确保导入面一致)
+    from gloss.cli import cli as _cli  # noqa: F401  (确保导入面一致)
 
     status, _, data = _request(server_url, path="/api/config")
     assert status == 200

@@ -23,7 +23,6 @@ import threading
 import time
 from ctypes import wintypes
 from pathlib import Path
-from typing import Optional, Tuple
 
 from .config import load_config
 from .models import GlossError
@@ -54,7 +53,7 @@ _CHROME_PATHS = [
 ]
 
 _CARD: dict = {"win": None}
-_NATIVE: Optional[bool] = None
+_NATIVE: bool | None = None
 
 _INJECT_CSS = """
 #gloss-native-bar {
@@ -158,7 +157,7 @@ def _tray_image(Image, ImageDraw):
     return img
 
 
-def parse_hotkey(spec: str) -> Optional[Tuple[int, int, str]]:
+def parse_hotkey(spec: str) -> tuple[int, int, str] | None:
     """'ctrl+g' -> (modifiers, vk_code, display); None if invalid.
 
     Only single letters and digits are accepted as the key, matching the
@@ -236,10 +235,13 @@ def _hotkey_loop(raise_errors: bool) -> None:
 
     spec = load_config()["app"]["hotkey"]
     parsed = parse_hotkey(spec)
-    registered = parsed is not None and user32.RegisterHotKey(None, HOTKEY_ID, parsed[0], parsed[1])
-    if not registered:
-        parsed = parse_hotkey(FALLBACK_SPEC)
-        if not user32.RegisterHotKey(None, HOTKEY_ID, parsed[0], parsed[1]):
+    if parsed is not None and user32.RegisterHotKey(None, HOTKEY_ID, parsed[0], parsed[1]):
+        console.print(f"[dim]呼出键 {parsed[2]} · 退出键 Ctrl+Alt+Shift+G[/dim]")
+    else:
+        # 用户组合非法或被占用 → 换兜底组合注册（与 macOS 默认对齐）
+        fallback = parse_hotkey(FALLBACK_SPEC)
+        assert fallback is not None  # FALLBACK_SPEC 是内置合法值，解析必成功
+        if not user32.RegisterHotKey(None, HOTKEY_ID, fallback[0], fallback[1]):
             message = (
                 f"全局热键注册失败（{FALLBACK_SPEC} 也被占用）。可能已经有一个 "
                 f"gloss hotkey 在运行（看系统托盘的 {glyph('📖', 'gloss')} 图标）；想换组合: "
@@ -253,8 +255,6 @@ def _hotkey_loop(raise_errors: bool) -> None:
             f"[yellow]配置的热键 {spec!r} 注册失败，"
             f"已改用 {FALLBACK_SPEC}（对齐 macOS 的 {glyph('⌘', 'Cmd+')}G）[/yellow]"
         )
-    else:
-        console.print(f"[dim]呼出键 {parsed[2]} · 退出键 Ctrl+Alt+Shift+G[/dim]")
 
     quit_parsed = parse_hotkey(QUIT_SPEC)
     if quit_parsed:
@@ -412,7 +412,8 @@ def _open_popup(port: int) -> None:
 # ---------------------------------------------------------------------------
 
 def startup_path() -> Path:
-    startup = Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+    startup = (Path(os.environ["APPDATA"]) / "Microsoft" / "Windows"
+               / "Start Menu" / "Programs" / "Startup")
     return startup / "gloss-hotkey.vbs"
 
 

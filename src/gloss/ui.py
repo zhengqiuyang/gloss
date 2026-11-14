@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from typing import Dict, List, Optional, Tuple
 
 from rich.console import Console
 from rich.panel import Panel
@@ -16,7 +15,7 @@ console = Console()
 
 # 终端编码不支持某个符号时（典型：GBK 控制台遇到 emoji），自动降级为 ASCII
 # 替身。探测结果按 (字符, 编码名) 缓存；GUI/HTML 里的符号不走这里（WebView 是 UTF-8）。
-_glyph_cache: Dict[Tuple[str, str], bool] = {}
+_glyph_cache: dict[tuple[str, str], bool] = {}
 
 _TYPE_BADGE = {"term": ("📖", "[T]"), "snippet": ("📝", "[S]")}
 
@@ -57,9 +56,9 @@ def _date(iso: str) -> str:
 def render_card(
     card: Card,
     cache_hit: bool,
-    linked: Optional[List[Card]] = None,
-    pending: Optional[List[str]] = None,
-    backfilled: Optional[List[Card]] = None,
+    linked: list[Card] | None = None,
+    pending: list[str] | None = None,
+    backfilled: list[Card] | None = None,
 ) -> None:
     linked = linked or []
     pending = pending or []
@@ -114,7 +113,7 @@ def render_card(
     console.print(Text(footer, style="dim"))
 
 
-def render_digest(card: Card, key_terms: List[str]) -> None:
+def render_digest(card: Card, key_terms: list[str]) -> None:
     render_card(card, cache_hit=False)
     if key_terms:
         table = Table(show_header=False, box=None, padding=(0, 1))
@@ -142,7 +141,7 @@ def render_translation(result: dict) -> None:
                         subtitle=badge, subtitle_align="left"))
 
 
-def render_list(cards: List[Card]) -> None:
+def render_list(cards: list[Card]) -> None:
     if not cards:
         console.print("[dim]词库还是空的。试试: gloss RAG[/dim]")
         return
@@ -163,7 +162,7 @@ def render_list(cards: List[Card]) -> None:
     console.print(table)
 
 
-def render_search(results: List[Card], query: str) -> None:
+def render_search(results: list[Card], query: str) -> None:
     if not results:
         console.print(f"[dim]没有匹配 {query!r} 的卡片。[/dim]")
         return
@@ -177,7 +176,7 @@ def render_search(results: List[Card], query: str) -> None:
     console.print(table)
 
 
-def render_related(center: Card, linked: List[Card], pending: List[str]) -> None:
+def render_related(center: Card, linked: list[Card], pending: list[str]) -> None:
     console.print(f"[bold cyan]{center.term}[/bold cyan] 的关联概念")
     if linked:
         for c in linked:
@@ -188,7 +187,7 @@ def render_related(center: Card, linked: List[Card], pending: List[str]) -> None
         console.print("[dim]暂无关联概念。[/dim]")
 
 
-def render_review(days: int, fresh: List[Card], top: List[Card]) -> None:
+def render_review(days: int, fresh: list[Card], top: list[Card]) -> None:
     console.print(f"[bold]{glyph('📖', '')} 近 {days} 天复盘[/bold]")
     if not fresh:
         console.print("[dim]这段时间没有新卡片。丢一个词进来: gloss <术语>[/dim]")
@@ -209,9 +208,13 @@ def render_review(days: int, fresh: List[Card], top: List[Card]) -> None:
             console.print(f"  {c.term} [dim]× {c.hit_count}[/dim]")
 
 
-def render_stats(stats: dict, top: List[Card]) -> None:
+def render_stats(stats: dict, top: list[Card]) -> None:
     table = Table(title="词库统计", show_header=False, box=None, padding=(0, 2))
-    table.add_row("卡片总数", f"{stats['total']}  (术语 {stats['by_type'].get('term', 0)} / 摘要 {stats['by_type'].get('snippet', 0)})")
+    by_type = stats['by_type']
+    table.add_row(
+        "卡片总数",
+        f"{stats['total']}  (术语 {by_type.get('term', 0)} / 摘要 {by_type.get('snippet', 0)})",
+    )
     table.add_row("累计缓存命中", f"{stats['cache_hits']} 次（每次命中都是零 token 的重复查询）")
     table.add_row("累计模型消耗", f"{stats['tokens_spent']} tokens")
     console.print(table)

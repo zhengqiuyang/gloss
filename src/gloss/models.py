@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, List, Optional
+from typing import Any
 
 TYPE_TERM = "term"
 TYPE_SNIPPET = "snippet"
@@ -15,11 +15,11 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def jdump(value: List[str]) -> str:
+def jdump(value: list[str]) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-def jload(raw: Any) -> List[str]:
+def jload(raw: Any) -> list[str]:
     if not raw:
         return []
     if isinstance(raw, list):
@@ -48,29 +48,29 @@ class Card:
 
     term: str
     type: str = TYPE_TERM
-    aliases: List[str] = field(default_factory=list)
+    aliases: list[str] = field(default_factory=list)
     one_liner: str = ""
     detail: str = ""
-    tags: List[str] = field(default_factory=list)
-    related_names: List[str] = field(default_factory=list)  # not-yet-linked names
+    tags: list[str] = field(default_factory=list)
+    related_names: list[str] = field(default_factory=list)  # not-yet-linked names
     source: str = ""
     context: str = ""
     tokens_used: int = 0
     hit_count: int = 0
     created_at: str = field(default_factory=now_iso)
     updated_at: str = field(default_factory=now_iso)
-    id: Optional[int] = None
+    id: int | None = None
 
     @property
     def norm(self) -> str:
         return norm_term(self.term)
 
     @property
-    def all_names(self) -> List[str]:
+    def all_names(self) -> list[str]:
         return [self.term] + list(self.aliases)
 
     @classmethod
-    def from_row(cls, row) -> "Card":
+    def from_row(cls, row) -> Card:
         return cls(
             id=row["id"],
             type=row["type"],

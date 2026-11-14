@@ -8,9 +8,9 @@ LIKE-based search instead of failing.
 from __future__ import annotations
 
 import sqlite3
-from typing import Iterable, List, Optional, Tuple
+from collections.abc import Iterable
 
-from .models import Card, jdump, now_iso, norm_term
+from .models import Card, jdump, norm_term, now_iso
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cards (
@@ -77,7 +77,7 @@ CREATE TRIGGER IF NOT EXISTS cards_au AFTER UPDATE ON cards BEGIN
 END;
 """
 
-_conn: Optional[sqlite3.Connection] = None
+_conn: sqlite3.Connection | None = None
 _fts_enabled = True
 
 
@@ -128,7 +128,8 @@ def _migrate_mentions_model(conn: sqlite3.Connection) -> None:
         for link in conn.execute("SELECT card_a, card_b FROM links").fetchall():
             a = _card_or_none(conn, link["card_a"])
             b = _card_or_none(conn, link["card_b"])
-            if a is None or b is None or _mentions(a, b.id) or _mentions(b, a.id):
+            if (a is None or b is None or a.id is None or b.id is None
+                    or _mentions(a, b.id) or _mentions(b, a.id)):
                 continue
             for card, other in ((a, b), (b, a)):
                 # Update only mentions, preserving aliases and edit history.
@@ -137,7 +138,7 @@ def _migrate_mentions_model(conn: sqlite3.Connection) -> None:
         conn.execute("INSERT INTO meta (key, value) VALUES ('mentions_model', '3')")
 
 
-def _card_or_none(conn: sqlite3.Connection, card_id: int) -> Optional[Card]:
+def _card_or_none(conn: sqlite3.Connection, card_id: int) -> Card | None:
     row = conn.execute("SELECT * FROM cards WHERE id = ?", (card_id,)).fetchone()
     return Card.from_row(row) if row else None
 
@@ -192,7 +193,7 @@ def update_card(card: Card) -> None:
     conn.commit()
 
 
-def get_card(name: str) -> Optional[Card]:
+def get_card(name: str) -> Card | None:
     """Exact lookup by term or alias, case-insensitive."""
     key = norm_term(name)
     row = connect().execute(
@@ -207,7 +208,7 @@ def get_card(name: str) -> Optional[Card]:
     return Card.from_row(row) if row else None
 
 
-def get_card_by_id(card_id: int) -> Optional[Card]:
+def get_card_by_id(card_id: int) -> Card | None:
     row = connect().execute("SELECT * FROM cards WHERE id = ?", (card_id,)).fetchone()
     return Card.from_row(row) if row else None
 
@@ -219,7 +220,7 @@ def delete_card(card_id: int) -> bool:
     return cur.rowcount > 0
 
 
-def get_meta(key: str) -> Optional[str]:
+def get_meta(key: str) -> str | None:
     row = connect().execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
     return row["value"] if row else None
 
@@ -229,7 +230,7 @@ def get_meta(key: str) -> Optional[str]:
 # sentences are content, not terms — they shouldn't pollute FTS or graphs)
 # ---------------------------------------------------------------------------
 
-def get_translation(hash_: str) -> Optional[dict]:
+def get_translation(hash_: str) -> dict | None:
     row = connect().execute(
         "SELECT * FROM translations WHERE hash = ?", (hash_,)
     ).fetchone()
@@ -246,7 +247,9 @@ def insert_translation(hash_: str, source: str, target_lang: str,
         (hash_, source, target_lang, translation, tokens, now_iso()),
     )
     conn.commit()
-    return get_translation(hash_)
+    inserted = get_translation(hash_)
+    assert inserted is not None  # 刚插入必然存在
+    return inserted
 
 
 def increment_translation_hit(id_: int) -> None:
@@ -275,12 +278,13 @@ def increment_hit(card_id: int) -> None:
 
 
 def list_cards(
-    card_type: Optional[str] = None,
-    tag: Optional[str] = None,
+    card_type: str | None = None,
+    tag: str | None = None,
     limit: int = 50,
-) -> List[Card]:
+) -> list[Card]:
     query = "SELECT * FROM cards"
-    clauses, params = [], []
+    clauses: list[str] = []
+    params: list[str | int] = []
     if card_type:
         clauses.append("type = ?")
         params.append(card_type)
@@ -294,7 +298,7 @@ def list_cards(
     return [Card.from_row(r) for r in connect().execute(query, params)]
 
 
-def all_terms(limit: int = 200) -> List[str]:
+def all_terms(limit: int = 200) -> list[str]:
     rows = connect().execute(
         "SELECT term FROM cards ORDER BY hit_count DESC, id DESC LIMIT ?", (limit,)
     )
@@ -310,7 +314,7 @@ def _sanitize_fts(query: str) -> str:
     return " ".join(f'"{t}"' for t in tokens if t)
 
 
-def _like_search(query: str, limit: int) -> List[Card]:
+def _like_search(query: str, limit: int) -> list[Card]:
     pattern = f"%{query}%"
     rows = connect().execute(
         """SELECT * FROM cards
@@ -322,8 +326,8 @@ def _like_search(query: str, limit: int) -> List[Card]:
     return [Card.from_row(r) for r in rows]
 
 
-def search(query: str, limit: int = 20) -> List[Card]:
-    results: List[Card] = []
+def search(query: str, limit: int = 20) -> list[Card]:
+    results: list[Card] = []
     seen: set = set()
     if _fts_enabled:
         try:
@@ -363,7 +367,7 @@ def add_link(a_id: int, b_id: int) -> bool:
     return cur.rowcount > 0
 
 
-def neighbors(card_id: int) -> List[Card]:
+def neighbors(card_id: int) -> list[Card]:
     rows = connect().execute(
         """SELECT c.* FROM links l
            JOIN cards c ON c.id = CASE WHEN l.card_a = ? THEN l.card_b ELSE l.card_a END
@@ -382,18 +386,19 @@ def has_link(a_id: int, b_id: int) -> bool:
     return row is not None
 
 
-def resolve_related(card: Card) -> Tuple[List[Card], List[str]]:
+def resolve_related(card: Card) -> tuple[list[Card], list[str]]:
     """Create links for the card's related_names that resolve to local cards.
 
     related_names is the card's full mention list and stays intact — names
     with no local card yet ("pending") remain in it and resolve dynamically
     as new cards appear (see pending_names and backfill_links).
     """
-    linked: List[Card] = []
-    pending: List[str] = []
+    linked: list[Card] = []
+    pending: list[str] = []
     for name in card.related_names:
         other = get_card(name)
-        if other and other.id != card.id:
+        if (other is not None and card.id is not None and other.id is not None
+                and other.id != card.id):
             add_link(card.id, other.id)
             linked.append(other)
         else:
@@ -401,9 +406,9 @@ def resolve_related(card: Card) -> Tuple[List[Card], List[str]]:
     return linked, pending
 
 
-def pending_names(card: Card) -> List[str]:
+def pending_names(card: Card) -> list[str]:
     """Names in related_names that don't resolve to a local card yet."""
-    pending: List[str] = []
+    pending: list[str] = []
     for name in card.related_names:
         other = get_card(name)
         if other is None or other.id == card.id:
@@ -411,7 +416,7 @@ def pending_names(card: Card) -> List[str]:
     return pending
 
 
-def backfill_links(card: Card) -> List[Card]:
+def backfill_links(card: Card) -> list[Card]:
     """Materialize links from cards whose related_names mention this card.
 
     Resolution-based on purpose: a mention counts only when get_card(name)
@@ -422,7 +427,9 @@ def backfill_links(card: Card) -> List[Card]:
     carries that alias; a duplicate alias holder gets nothing. The mention
     itself stays in the other card's list (see pending_names).
     """
-    newly_linked: List[Card] = []
+    newly_linked: list[Card] = []
+    if card.id is None:
+        return newly_linked
     for row in connect().execute(
         "SELECT id FROM cards WHERE id != ? AND related_names != '[]'",
         (card.id,),
@@ -434,12 +441,12 @@ def backfill_links(card: Card) -> List[Card]:
             (target := get_card(name)) is not None and target.id == card.id
             for name in other.related_names
         )
-        if mentions_me and add_link(card.id, other.id):
+        if mentions_me and other.id is not None and add_link(card.id, other.id):
             newly_linked.append(other)
     return newly_linked
 
 
-def prune_stale_links(card: Card, old_neighbor_ids: set) -> List[int]:
+def prune_stale_links(card: Card, old_neighbor_ids: set) -> list[int]:
     """After a replace-style edit, drop old links neither side still justifies.
 
     Callers snapshot the card's neighbor ids BEFORE replacing its content.
@@ -454,7 +461,7 @@ def prune_stale_links(card: Card, old_neighbor_ids: set) -> List[int]:
         target = get_card(name)
         if target is not None and target.id != card.id:
             justified.add(target.id)
-    removed: List[int] = []
+    removed: list[int] = []
     for old_id in old_neighbor_ids:
         if old_id == card.id or old_id in justified:
             continue
@@ -501,7 +508,7 @@ def counts() -> dict:
     }
 
 
-def created_since(days: int) -> List[Card]:
+def created_since(days: int) -> list[Card]:
     rows = connect().execute(
         """SELECT * FROM cards
            WHERE created_at >= datetime('now', ?)
@@ -511,7 +518,7 @@ def created_since(days: int) -> List[Card]:
     return [Card.from_row(r) for r in rows]
 
 
-def top_hits(limit: int = 5) -> List[Card]:
+def top_hits(limit: int = 5) -> list[Card]:
     rows = connect().execute(
         "SELECT * FROM cards WHERE hit_count > 0 ORDER BY hit_count DESC LIMIT ?",
         (limit,),

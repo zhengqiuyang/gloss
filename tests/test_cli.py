@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 
-from gloss import db
-from gloss.config import config_path, gloss_home
-from gloss.cli import cli
-
 from conftest import make_card
+
+from gloss import db
+from gloss.cli import cli
+from gloss.config import config_path
 
 
 def test_lookup_then_cache_hit(runner, home, fake_llm):

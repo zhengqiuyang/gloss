@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 
-from gloss import db, ingest
-from gloss.cli import cli
-
 from conftest import http_request as _request
+
+from gloss import ingest
+from gloss.cli import cli
 
 
 def test_translate_calls_llm_and_caches(home, fake_llm):
@@ -32,6 +32,7 @@ def test_translate_cache_is_keyed_by_text_and_target(home, fake_llm):
 
 def test_translate_rejects_empty(home, fake_llm):
     import pytest
+
     from gloss.models import GlossError
 
     with pytest.raises(GlossError):

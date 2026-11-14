@@ -16,7 +16,7 @@ import ctypes
 import os
 import signal
 import threading
-from typing import Callable, Optional
+from typing import Callable
 
 from .config import gloss_home
 from .models import GlossError
@@ -56,7 +56,7 @@ _EVENT_CLASS_KEYBOARD = 0x6B657962  # kEventClassKeyboard = 'keyb'
 _EVENT_HOT_KEY_PRESSED = 5          # Carbon Events.h: kEventHotKeyPressed = 5
 
 
-def parse_hotkey(spec: str) -> Optional[tuple]:
+def parse_hotkey(spec: str) -> tuple | None:
     """'cmd+g' -> (keycode, carbon_modifiers, display) ; None if invalid."""
     parts = [p.strip().lower() for p in spec.split("+") if p.strip()]
     if len(parts) < 2:
@@ -167,8 +167,8 @@ def _sigterm_stop(signum, frame) -> None:
 def _run_gui(port: int, no_hotkey: bool, show_on_start: bool) -> None:
     global _ACTIVE_CONTROL
     import AppKit as A
-    from . import appctl
 
+    from . import appctl
     from .config import load_config
 
     spec = load_config()["app"]["hotkey"]
@@ -298,7 +298,7 @@ def _build_delegate_class():
             color.setStroke()
             path = A.NSBezierPath.bezierPath()
             path.setLineWidth_(1.5)
-            w, h = self.bounds().size.width, self.bounds().size.height
+            w, _h = self.bounds().size.width, self.bounds().size.height
             for i in range(3):
                 o = 4 + i * 5
                 path.moveToPoint_((w - o, 2.5))
@@ -553,11 +553,11 @@ def register_hotkey(callback: Callable[[], None], spec: str = "cmd+g") -> bool:
     if not target:
         return False
 
-    spec = EventTypeSpec(_EVENT_CLASS_KEYBOARD, _EVENT_HOT_KEY_PRESSED)
+    event_spec = EventTypeSpec(_EVENT_CLASS_KEYBOARD, _EVENT_HOT_KEY_PRESSED)
     handler = ctypes.c_void_p()
     if (
         carbon.InstallEventHandler(
-            target, _HOTKEY_REFS[0], 1, ctypes.byref(spec), None, ctypes.byref(handler)
+            target, _HOTKEY_REFS[0], 1, ctypes.byref(event_spec), None, ctypes.byref(handler)
         )
         != 0
     ):

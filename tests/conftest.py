@@ -7,7 +7,7 @@ import json
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import pytest
 from click.testing import CliRunner
@@ -50,14 +50,14 @@ class FakeLLM:
     """Records prompts and returns queued payloads, mimicking gloss.llm.GlossLLM."""
 
     def __init__(self):
-        self.term_queue: List[Tuple[Dict[str, Any], int]] = [(dict(TERM_PAYLOAD), 900)]
-        self.snippet_queue: List[Tuple[Dict[str, Any], int]] = [(dict(SNIPPET_PAYLOAD), 1200)]
-        self.image_queue: List[Tuple[Dict[str, Any], int]] = [(dict(SNIPPET_PAYLOAD), 1500)]
-        self.translate_queue: List[Tuple[str, int]] = [("你好，世界", 60)]
-        self.term_calls: List[Dict[str, Any]] = []
-        self.snippet_calls: List[str] = []
-        self.image_calls: List[str] = []
-        self.translate_calls: List[Tuple[str, str]] = []
+        self.term_queue: list[tuple[dict[str, Any], int]] = [(dict(TERM_PAYLOAD), 900)]
+        self.snippet_queue: list[tuple[dict[str, Any], int]] = [(dict(SNIPPET_PAYLOAD), 1200)]
+        self.image_queue: list[tuple[dict[str, Any], int]] = [(dict(SNIPPET_PAYLOAD), 1500)]
+        self.translate_queue: list[tuple[str, int]] = [("你好，世界", 60)]
+        self.term_calls: list[dict[str, Any]] = []
+        self.snippet_calls: list[str] = []
+        self.image_calls: list[str] = []
+        self.translate_calls: list[tuple[str, str]] = []
 
     def explain_term(self, term, known_terms, context="", source=""):
         self.term_calls.append(
@@ -114,7 +114,7 @@ def server_url(home, fake_llm):
     srv.server_close()
 
 
-def http_request(url, method="GET", payload: Optional[dict] = None, path: Optional[str] = None):
+def http_request(url, method="GET", payload: dict | None = None, path: str | None = None):
     conn = http.client.HTTPConnection(url, timeout=30)
     body = json.dumps(payload).encode() if payload is not None else None
     headers = {"Content-Type": "application/json"} if payload is not None else {}

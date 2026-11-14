@@ -8,14 +8,14 @@ import click
 import pytest
 
 from gloss import appctl
+from gloss.config import config_path, load_config, save_config, set_config_value
+
+commands = importlib.import_module("gloss.cli")
 
 # click 8.1 (Python 3.9 floor) has no echo-free hidden path under
 # CliRunner: the key lands in captured output. The no-echo guarantee
 # holds on click >= 8.2 and on real terminals of every version.
 _CLICK_HIDDEN_ECHOES = tuple(map(int, click.__version__.split('.')[:2])) < (8, 2)
-from gloss.config import config_path, load_config, save_config, set_config_value
-
-commands = importlib.import_module("gloss.cli")
 
 
 @pytest.fixture
@@ -71,7 +71,9 @@ def test_cancel_keeps_original_config_and_does_not_spawn(runner, terminal):
     assert terminal == []
 
 
-@pytest.mark.parametrize("mode", ["hidden", "noninteractive", "configured", "environment", "running"])
+@pytest.mark.parametrize(
+    "mode", ["hidden", "noninteractive", "configured", "environment", "running"],
+)
 def test_existing_and_unattended_launches_never_prompt(runner, terminal, monkeypatch, mode):
     args = ["app"]
     if mode == "hidden":
@@ -104,7 +106,10 @@ def test_explicit_setup_preserves_unrelated_fields_and_existing_key(runner, term
 
 
 def test_setup_retries_invalid_address_and_model(runner, terminal):
-    result = runner.invoke(commands.cli, ["setup"], input="bad-url\nhttps://example.invalid/v1\n   \nmodel\nsecret-test\n")
+    result = runner.invoke(
+        commands.cli, ["setup"],
+        input="bad-url\nhttps://example.invalid/v1\n   \nmodel\nsecret-test\n",
+    )
     assert result.exit_code == 0, result.output
     assert "完整" in result.output and "不能为空" in result.output
     assert load_config()["llm"]["model"] == "model"

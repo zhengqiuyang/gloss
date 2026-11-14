@@ -8,12 +8,11 @@ from __future__ import annotations
 import subprocess
 import sys
 import tempfile
-from typing import Optional, Tuple
 
 from .models import GlossError
 
 
-def read_clipboard() -> Tuple[str, str]:
+def read_clipboard() -> tuple[str, str]:
     """Return ("text", text) or ("image", png_path) from the clipboard.
 
     Text wins when both are present (copying a file copies its path as text).
@@ -27,13 +26,14 @@ def read_clipboard() -> Tuple[str, str]:
     if png_path is not None:
         return "image", png_path
 
-    note = "（剪贴板捕获目前支持 macOS 和 Windows）" if sys.platform not in ("darwin", "win32") else ""
+    note = ("（剪贴板捕获目前支持 macOS 和 Windows）"
+            if sys.platform not in ("darwin", "win32") else "")
     raise GlossError(
         "剪贴板里没有文字也没有图片。先复制一个词/一段话/一张截图，再跑 gloss paste。" + note
     )
 
 
-def _clipboard_text() -> Optional[str]:
+def _clipboard_text() -> str | None:
     if sys.platform == "darwin":
         return _pbpaste()
     if sys.platform == "win32":
@@ -41,7 +41,7 @@ def _clipboard_text() -> Optional[str]:
     return None
 
 
-def _clipboard_png() -> Optional[str]:
+def _clipboard_png() -> str | None:
     """Return a path to a PNG of the clipboard image, or None."""
     if sys.platform == "darwin":
         return _macos_png_path()
@@ -54,7 +54,7 @@ def _clipboard_png() -> Optional[str]:
 # macOS
 # ---------------------------------------------------------------------------
 
-def _pbpaste() -> Optional[str]:
+def _pbpaste() -> str | None:
     try:
         result = subprocess.run(
             ["pbpaste"], capture_output=True, text=True, timeout=5
@@ -64,7 +64,7 @@ def _pbpaste() -> Optional[str]:
     return result.stdout if result.returncode == 0 else None
 
 
-def _pasteboard_png() -> Optional[bytes]:
+def _pasteboard_png() -> bytes | None:
     """Read raw PNG data from the macOS pasteboard via AppleScript (no deps)."""
     script = 'the clipboard as «class PNGf»'
     try:
@@ -84,7 +84,7 @@ def _pasteboard_png() -> Optional[bytes]:
         return None
 
 
-def _macos_png_path() -> Optional[str]:
+def _macos_png_path() -> str | None:
     png = _pasteboard_png()
     if png is None:
         return None
@@ -95,7 +95,7 @@ def _macos_png_path() -> Optional[str]:
 # Windows
 # ---------------------------------------------------------------------------
 
-def _win32_text() -> Optional[str]:
+def _win32_text() -> str | None:
     """CF_UNICODETEXT straight from user32 — instant, no subprocess, no deps."""
     import ctypes
     from ctypes import wintypes
@@ -136,7 +136,7 @@ $img.Save($env:GLOSS_CLIP_PNG, [System.Drawing.Imaging.ImageFormat]::Png)
 """
 
 
-def _win32_png_path() -> Optional[str]:
+def _win32_png_path() -> str | None:
     """Save the clipboard image to a temp PNG via PowerShell.
 
     WinForms Clipboard requires an STA thread, hence -Sta. The target path is

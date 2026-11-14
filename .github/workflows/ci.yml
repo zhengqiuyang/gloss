@@ -29,3 +29,20 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Test
         run: pytest
+
+  lint:
+    # 单独的 lint job：ruff + mypy + 覆盖率，不在矩阵里重复跑
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Ruff
+        run: ruff check .
+      - name: Mypy
+        run: mypy
+      - name: Coverage（fail_under 见 pyproject）
+        run: pytest --cov=gloss --cov-report=term-missing

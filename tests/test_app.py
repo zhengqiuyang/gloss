@@ -123,7 +123,13 @@ def test_native_drag_and_resize_regions_stay_at_window_edges(home):
         probe.setReleasedWhenClosed_(False)
         try:
             probe.contentView().addSubview_(strip)
-            event = A.NSEvent.mouseEventWithType_location_modifierFlags_timestamp_windowNumber_context_eventNumber_clickCount_pressure_(
+            # pyobjc 的 ObjC 选择器名不可拆分，getattr + 字符串拼接只为折行
+            mk_mouse_event = getattr(  # noqa: B009
+                A.NSEvent,
+                "mouseEventWithType_location_modifierFlags_timestamp_windowNumber_"
+                "context_eventNumber_clickCount_pressure_",
+            )
+            event = mk_mouse_event(
                 A.NSEventTypeLeftMouseDown, (20, 15), 0, 0,
                 probe.windowNumber(), None, 1, 1, 1,
             )
