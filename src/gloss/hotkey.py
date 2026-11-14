@@ -197,11 +197,14 @@ def run_hotkey() -> None:
     if sys.platform != "win32":
         raise GlossError("gloss hotkey 目前仅支持 Windows；macOS 请用 gloss app")
 
-    from .ui import console
+    from .ui import console, glyph
 
     _start_tray()
     if _native_available():
-        console.print("[green]📖 gloss 热键已启动[/green]（原生无边框卡片，呼出键见下 · Esc 关窗）")
+        console.print(
+            f"[green]{glyph('📖', '')} gloss 热键已启动[/green]"
+            "（原生无边框卡片，呼出键见下 · Esc 关窗）"
+        )
         # the card is created once, hidden, with events wired BEFORE the GUI
         # loop starts — every later press only reloads and shows it
         _create_card(load_config()["serve"]["port"])
@@ -215,7 +218,8 @@ def run_hotkey() -> None:
         webview.start()
     else:
         console.print(
-            "[green]📖 gloss 热键已启动[/green]（呼出键见下 · 浏览器弹窗模式；"
+            f"[green]{glyph('📖', '')} gloss 热键已启动[/green]"
+            "（呼出键见下 · 浏览器弹窗模式；"
             "安装 pywebview 可升级为无边框卡片: uv tool install --reinstall -e '.[app]'）"
         )
         _hotkey_loop(raise_errors=True)
@@ -228,7 +232,7 @@ def _hotkey_loop(raise_errors: bool) -> None:
     hotkey messages are delivered to the registering thread.
     """
     user32 = ctypes.windll.user32
-    from .ui import console
+    from .ui import console, glyph
 
     spec = load_config()["app"]["hotkey"]
     parsed = parse_hotkey(spec)
@@ -238,16 +242,16 @@ def _hotkey_loop(raise_errors: bool) -> None:
         if not user32.RegisterHotKey(None, HOTKEY_ID, parsed[0], parsed[1]):
             message = (
                 f"全局热键注册失败（{FALLBACK_SPEC} 也被占用）。可能已经有一个 "
-                f"gloss hotkey 在运行（看系统托盘的 📖 图标）；想换组合: "
+                f"gloss hotkey 在运行（看系统托盘的 {glyph('📖', 'gloss')} 图标）；想换组合: "
                 f"gloss config set app.hotkey ctrl+alt+g"
             )
             if raise_errors:
                 raise GlossError(message)
-            console.print(f"[red]✗ {message}[/red]")
+            console.print(f"[red]{glyph('✗', 'X')} {message}[/red]")
             os._exit(1)
         console.print(
             f"[yellow]配置的热键 {spec!r} 注册失败，"
-            f"已改用 {FALLBACK_SPEC}（对齐 macOS 的 ⌘G）[/yellow]"
+            f"已改用 {FALLBACK_SPEC}（对齐 macOS 的 {glyph('⌘', 'Cmd+')}G）[/yellow]"
         )
     else:
         console.print(f"[dim]呼出键 {parsed[2]} · 退出键 Ctrl+Alt+Shift+G[/dim]")

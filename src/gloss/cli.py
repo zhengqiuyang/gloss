@@ -87,7 +87,7 @@ def _present_notified(result: dict) -> None:
         body = f"已收录 · {card.one_liner}"
     notify_ok = notify_mod.send(f"gloss · {card.term}", body)
     if notify_ok:
-        ui.console.print(f"[dim]✓ 已通知: {card.term}[/dim]")
+        ui.console.print(f"[dim]{ui.glyph('✓', 'OK')} 已通知: {card.term}[/dim]")
     else:
         ui.console.print(
             f"[yellow]此平台暂不支持系统通知（目前仅 macOS），卡片已入词库: {card.term}[/yellow]"
@@ -208,14 +208,14 @@ def app_cmd(no_hotkey: bool, hidden: bool, foreground: bool,
         if pid is None:
             ui.console.print("[dim]gloss app 没有在运行。[/dim]")
         else:
-            ui.console.print(f"[green]✓ 已停止 (pid {pid})[/green]")
+            ui.console.print(f"[green]{ui.glyph('✓', 'OK')} 已停止 (pid {pid})[/green]")
         return
     if startup_mode == "install":
         _require_darwin_app()
         path = appctl.install_startup(no_hotkey=no_hotkey)
         pid = appctl.ensure_startup_running()
         ui.console.print(
-            f"[green]✓ 登录自启已启用，应用已就绪 (pid {pid})[/green]"
+            f"[green]{ui.glyph('✓', 'OK')} 登录自启已启用，应用已就绪 (pid {pid})[/green]"
             f"（{path}，登录后隐藏启动）"
         )
         return
@@ -224,14 +224,18 @@ def app_cmd(no_hotkey: bool, hidden: bool, foreground: bool,
         pid_before = appctl.running_instance()
         if appctl.remove_startup():
             if pid_before is None:
-                ui.console.print("[green]✓ 已移除登录自启[/green]（当前无已就绪实例）")
+                ui.console.print(
+                    f"[green]{ui.glyph('✓', 'OK')} 已移除登录自启[/green]（当前无已就绪实例）"
+                )
             elif not appctl.pid_is_gloss(pid_before):
                 ui.console.print(
-                    "[yellow]✓ 已移除登录自启[/yellow]"
+                    f"[yellow]{ui.glyph('✓', 'OK')} 已移除登录自启[/yellow]"
                     "（当前实例已退出。重新启动: gloss app）"
                 )
             else:
-                ui.console.print("[green]✓ 已移除登录自启[/green]（当前实例仍在运行）")
+                ui.console.print(
+                    f"[green]{ui.glyph('✓', 'OK')} 已移除登录自启[/green]（当前实例仍在运行）"
+                )
         else:
             ui.console.print("[dim]本来就没有登录自启。[/dim]")
         return
@@ -263,8 +267,10 @@ def app_cmd(no_hotkey: bool, hidden: bool, foreground: bool,
             return
         raise
     ui.console.print(
-        f"[green]✓ gloss 已在后台驻留[/green]（pid {pid}，终端可以关了）\n"
-        "菜单栏 📖 可呼出弹窗；查看状态: gloss app --status · 停止: gloss app --stop"
+        f"[green]{ui.glyph('✓', 'OK')} gloss 已在后台驻留[/green]"
+        f"（pid {pid}，终端可以关了）\n"
+        f"菜单栏 {ui.glyph('📖', '')}可呼出弹窗；"
+        "查看状态: gloss app --status · 停止: gloss app --stop"
     )
 
 
@@ -326,17 +332,23 @@ def hotkey_cmd(startup_mode: str, detach_mode: bool) -> None:
 
     if startup_mode == "install":
         path = hotkey.install_startup()
-        ui.console.print(f"[green]✓ 已写入开机自启[/green]（{path}，登录后隐藏运行 gloss hotkey）")
+        ui.console.print(
+            f"[green]{ui.glyph('✓', 'OK')} 已写入开机自启[/green]"
+            f"（{path}，登录后隐藏运行 gloss hotkey）"
+        )
         return
     if startup_mode == "remove":
         if hotkey.remove_startup():
-            ui.console.print("[green]✓ 已移除开机自启[/green]")
+            ui.console.print(f"[green]{ui.glyph('✓', 'OK')} 已移除开机自启[/green]")
         else:
             ui.console.print("[dim]本来就没有开机自启。[/dim]")
         return
     if detach_mode:
         hotkey.detach()
-        ui.console.print("[green]✓ 已在后台驻留[/green]（托盘 📖 图标可见，右键可退出）")
+        ui.console.print(
+            f"[green]{ui.glyph('✓', 'OK')} 已在后台驻留[/green]"
+            f"（托盘 {ui.glyph('📖', '')}图标可见，右键可退出）"
+        )
         return
     hotkey.run_hotkey()
 
@@ -369,7 +381,7 @@ def rm(name: Tuple[str, ...], yes: bool) -> None:
     if not yes:
         click.confirm(f"确定删除 {card.term!r}？其别名与关联会一并移除。", abort=True)
     db.delete_card(card.id)
-    ui.console.print(f"[green]✓ 已删除 {card.term}[/green]")
+    ui.console.print(f"[green]{ui.glyph('✓', 'OK')} 已删除 {card.term}[/green]")
 
 
 _EDIT_HEADER = """<!--
@@ -736,7 +748,7 @@ def main() -> None:
     try:
         cli()
     except GlossError as exc:
-        ui.console.print(f"[red]✗ {exc}[/red]")
+        ui.console.print(f"[red]{ui.glyph('✗', 'X')} {exc}[/red]")
         sys.exit(1)
     except KeyboardInterrupt:
         sys.exit(130)

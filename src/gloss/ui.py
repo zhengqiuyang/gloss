@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+import sys
+from typing import Dict, List, Optional, Tuple
 
 from rich.console import Console
 from rich.panel import Panel
@@ -13,7 +14,40 @@ from .models import Card
 
 console = Console()
 
-_TYPE_BADGE = {"term": "📖", "snippet": "📝"}
+# 终端编码不支持某个符号时（典型：GBK 控制台遇到 emoji），自动降级为 ASCII
+# 替身。探测结果按 (字符, 编码名) 缓存；GUI/HTML 里的符号不走这里（WebView 是 UTF-8）。
+_glyph_cache: Dict[Tuple[str, str], bool] = {}
+
+_TYPE_BADGE = {"term": ("📖", "[T]"), "snippet": ("📝", "[S]")}
+
+
+def _stream_encoding() -> str:
+    stream = getattr(console, "file", None) or sys.stdout
+    enc = getattr(stream, "encoding", None)
+    if not enc:
+        enc = getattr(sys.stdout, "encoding", None)
+    return enc or "utf-8"
+
+
+def _encodable(ch: str, enc: str) -> bool:
+    key = (ch, enc)
+    if key not in _glyph_cache:
+        try:
+            ch.encode(enc)
+            _glyph_cache[key] = True
+        except (UnicodeEncodeError, LookupError):
+            _glyph_cache[key] = False
+    return _glyph_cache[key]
+
+
+def glyph(emoji: str, fallback: str = "") -> str:
+    """终端编码能表示 emoji 时原样返回，否则返回 ASCII 替身。"""
+    return emoji if _encodable(emoji, _stream_encoding()) else fallback
+
+
+def _type_badge(card_type: str) -> str:
+    pair = _TYPE_BADGE.get(card_type, _TYPE_BADGE["term"])
+    return glyph(pair[0], pair[1])
 
 
 def _date(iso: str) -> str:
@@ -33,11 +67,13 @@ def render_card(
 
     if cache_hit:
         badge = Text(
-            f"⚡ cache hit · 0 tokens · 第 {card.hit_count} 次查询",
+            f"{glyph('⚡', '*')} cache hit · 0 tokens · 第 {card.hit_count} 次查询",
             style="green",
         )
     else:
-        badge = Text(f"✨ 已收录新卡片 · {card.tokens_used} tokens", style="cyan")
+        badge = Text(
+            f"{glyph('✨', '+')} 已收录新卡片 · {card.tokens_used} tokens", style="cyan"
+        )
 
     body = Text()
     if card.aliases:
@@ -56,7 +92,7 @@ def render_card(
     if all_linked or pending:
         body.append("\n")
         for other in all_linked.values():
-            body.append(f"  🔗 {other.term}", style="cyan")
+            body.append(f"  {glyph('🔗', '->')} {other.term}", style="cyan")
             body.append("  (已关联)\n", style="dim")
         for name in pending:
             body.append(f"  · {name}", style="yellow")
@@ -71,9 +107,9 @@ def render_card(
 
     if backfilled:
         names = ", ".join(c.term for c in backfilled)
-        footer += f" · 🔗 因新词回填关联: {names}"
+        footer += f" · {glyph('🔗', '->')} 因新词回填关联: {names}"
 
-    title = f"{_TYPE_BADGE.get(card.type, '📖')} {card.term}"
+    title = f"{_type_badge(card.type)} {card.term}"
     console.print(Panel(body, title=title, subtitle=badge, subtitle_align="left"))
     console.print(Text(footer, style="dim"))
 
@@ -91,14 +127,18 @@ def render_digest(card: Card, key_terms: List[str]) -> None:
 def render_translation(result: dict) -> None:
     if result["cache_hit"]:
         badge = Text(
-            f"⚡ 缓存命中 · 0 token · 第 {result['hits']} 次翻译", style="green"
+            f"{glyph('⚡', '*')} 缓存命中 · 0 token · 第 {result['hits']} 次翻译",
+            style="green",
         )
     else:
-        badge = Text(f"🌐 已翻译 · {result['tokens']} tokens · 已缓存", style="cyan")
+        badge = Text(
+            f"{glyph('🌐', '')} 已翻译 · {result['tokens']} tokens · 已缓存",
+            style="cyan",
+        )
     body = Text()
     body.append(result["source"] + "\n\n", style="dim")
     body.append(result["translation"])
-    console.print(Panel(body, title=f"🌐 译文（{result['target']}）",
+    console.print(Panel(body, title=f"{glyph('🌐', '')} 译文（{result['target']}）",
                         subtitle=badge, subtitle_align="left"))
 
 
@@ -114,7 +154,7 @@ def render_list(cards: List[Card]) -> None:
     table.add_column("收录日期", style="dim")
     for c in cards:
         table.add_row(
-            f"{_TYPE_BADGE.get(c.type, '📖')} {c.term}",
+            f"{_type_badge(c.type)} {c.term}",
             c.one_liner,
             " ".join(f"#{t}" for t in c.tags[:3]),
             str(c.hit_count),
@@ -130,7 +170,10 @@ def render_search(results: List[Card], query: str) -> None:
     console.print(f"[bold]搜索 {query!r}[/bold] · {len(results)} 条结果")
     table = Table(show_header=False, box=None, padding=(0, 1))
     for c in results:
-        table.add_row(Text(f"📖 {c.term}", style="cyan"), Text(c.one_liner, style="dim"))
+        table.add_row(
+            Text(f"{glyph('📖', '[T]')} {c.term}", style="cyan"),
+            Text(c.one_liner, style="dim"),
+        )
     console.print(table)
 
 
@@ -138,7 +181,7 @@ def render_related(center: Card, linked: List[Card], pending: List[str]) -> None
     console.print(f"[bold cyan]{center.term}[/bold cyan] 的关联概念")
     if linked:
         for c in linked:
-            console.print(f"  🔗 {c.term} [dim]— {c.one_liner}[/dim]")
+            console.print(f"  {glyph('🔗', '->')} {c.term} [dim]— {c.one_liner}[/dim]")
     for name in pending:
         console.print(f"  · {name} [yellow](未收录)[/yellow]")
     if not linked and not pending:
@@ -146,7 +189,7 @@ def render_related(center: Card, linked: List[Card], pending: List[str]) -> None
 
 
 def render_review(days: int, fresh: List[Card], top: List[Card]) -> None:
-    console.print(f"[bold]📖 近 {days} 天复盘[/bold]")
+    console.print(f"[bold]{glyph('📖', '')} 近 {days} 天复盘[/bold]")
     if not fresh:
         console.print("[dim]这段时间没有新卡片。丢一个词进来: gloss <术语>[/dim]")
     else:
@@ -157,9 +200,11 @@ def render_review(days: int, fresh: List[Card], top: List[Card]) -> None:
         for tag, cards in sorted(by_tag.items()):
             console.print(f"\n[magenta]#{tag}[/magenta]")
             for c in cards:
-                console.print(f"  📖 {c.term} [dim]— {c.one_liner}[/dim]")
+                console.print(
+                    f"  {glyph('📖', '[T]')} {c.term} [dim]— {c.one_liner}[/dim]"
+                )
     if top:
-        console.print("\n[bold]🔥 查得最多的词[/bold]")
+        console.print(f"\n[bold]{glyph('🔥', 'TOP')} 查得最多的词[/bold]")
         for c in top:
             console.print(f"  {c.term} [dim]× {c.hit_count}[/dim]")
 
@@ -171,4 +216,7 @@ def render_stats(stats: dict, top: List[Card]) -> None:
     table.add_row("累计模型消耗", f"{stats['tokens_spent']} tokens")
     console.print(table)
     if top:
-        console.print("[bold]🔥 最常查:[/bold] " + ", ".join(f"{c.term} ×{c.hit_count}" for c in top))
+        console.print(
+            f"[bold]{glyph('🔥', 'TOP')} 最常查:[/bold] "
+            + ", ".join(f"{c.term} ×{c.hit_count}" for c in top)
+        )
