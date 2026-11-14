@@ -170,12 +170,20 @@ def serve(port: int | None, no_browser: bool) -> None:
     ui.console.print("做成弹窗/快捷键的配方见 extras/README.md；常驻方案: gloss app")
     if not no_browser:
         webbrowser.open(f"http://127.0.0.1:{port}")
+
+    import signal
+
+    def _sigterm(_signum, _frame):
+        raise KeyboardInterrupt  # SIGTERM 与 Ctrl+C 走同一条优雅退出路径
+
+    signal.signal(signal.SIGTERM, _sigterm)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         ui.console.print("\n再见。")
     finally:
-        srv.server_close()
+        srv.shutdown()  # loop 已退出时立即返回；确保没有请求还在路上
+        srv.server_close()  # 释放端口，stop→start 立即可重绑
 
 
 @cli.command("app")

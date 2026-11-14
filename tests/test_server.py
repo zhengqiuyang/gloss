@@ -290,3 +290,35 @@ def test_page_settings_ui_prefills_and_can_clear(server_url):
     js = data.decode("utf-8")
     assert "dataset.pristine" in js      # 预填真实值，清空可被识别为修改
     assert "payload[k] = now;" in js     # 改动（含清空）才提交
+
+
+# -- G-P2-3: 统一安全头 + /api/config 禁缓存 -----------------------------------
+
+
+def _get_headers(base, path):
+    conn = http.client.HTTPConnection(base, timeout=30)
+    conn.request("GET", path)
+    resp = conn.getresponse()
+    resp.read()
+    headers = {k.lower(): v for k, v in resp.getheaders()}
+    conn.close()
+    return resp.status, headers
+
+
+def test_security_headers_on_every_response(server_url):
+    for path in ("/", "/api/config", "/api/nowhere"):
+        status, headers = _get_headers(server_url, path)
+        assert status in (200, 404)
+        assert headers["x-content-type-options"] == "nosniff", path
+        assert headers["referrer-policy"] == "no-referrer", path
+
+
+def test_config_responses_are_no_store(server_url):
+    _, headers = _get_headers(server_url, "/api/config")
+    assert headers["cache-control"] == "no-store"
+
+
+def test_other_api_has_no_store_only_on_config(server_url):
+    # 页面本身仍走默认缓存策略（弹窗是本地文件级私有数据，no-store 与否无关紧要）
+    _, headers = _get_headers(server_url, "/")
+    assert "cache-control" not in headers

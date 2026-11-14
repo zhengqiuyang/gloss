@@ -94,10 +94,23 @@ def make_handler():
         def log_message(self, *args):  # keep the popup quiet
             pass
 
-        def _json(self, code: int, payload: dict[str, Any]) -> None:
+        def end_headers(self) -> None:
+            """所有响应统一携带的保守安全头。
+
+            P2 决策：gloss 弹窗页是内联 script/style，CSP 只能 unsafe-inline
+            （自欺欺人），等重构成 nonce 再上；这里只加两个不碍事的。
+            """
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+            super().end_headers()
+
+        def _json(self, code: int, payload: dict[str, Any],
+                  cache_control: str | None = None) -> None:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self.send_response(code)
             self.send_header("Content-Type", "application/json; charset=utf-8")
+            if cache_control:
+                self.send_header("Cache-Control", cache_control)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -107,7 +120,8 @@ def make_handler():
 
             route = urlparse(self.path)
             if route.path == "/api/config":
-                return self._json(200, settings_payload())
+                # 配置里有脱敏后的 key 片段，禁止中间层缓存
+                return self._json(200, settings_payload(), cache_control="no-store")
             if route.path != "/":
                 return self._json(404, {"error": "not found"})
             glass = "1" in parse_qs(route.query).get("glass", [])
@@ -243,7 +257,8 @@ def make_handler():
             except GlossError as exc:
                 return self._json(400, {"error": str(exc)})
             return self._json(200, {"ok": True, "saved": list(data.keys()),
-                                    "config": settings_payload()})
+                                    "config": settings_payload()},
+                              cache_control="no-store")
 
         def _config_test(self) -> None:
             cfg = load_config()
