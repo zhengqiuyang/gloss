@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gloss-cli"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Learn a term once, own it forever — a local-first, AI-powered personal glossary."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -58,6 +58,9 @@ gloss = "gloss.cli:main"
 [project.urls]
 Homepage = "https://github.com/zhengqiuyang/gloss"
 Issues = "https://github.com/zhengqiuyang/gloss/issues"
+
+[tool.hatch.version]
+path = "src/gloss/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gloss"]
