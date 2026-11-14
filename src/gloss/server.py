@@ -22,6 +22,7 @@ from typing import Any
 
 from . import clipboard, ingest
 from .config import load_config, resolve_api_key
+from .llm import classify_llm_error  # 分类器移入 llm；server.classify_llm_error 仍可用
 from .models import Card, GlossError
 
 DEFAULT_PORT = 7789
@@ -55,20 +56,6 @@ def settings_payload() -> dict[str, Any]:
         "auto_lookup": app_.get("auto_lookup", True),
         "has_api_key": resolve_api_key(cfg) is not None,
     }
-
-
-def classify_llm_error(message: str) -> str:
-    """Map a raw provider error onto the four failure modes users actually hit."""
-    m = message.lower()
-    if "401" in m or "unauthorized" in m or "invalid api key" in m or "authentication" in m:
-        return "认证失败：API key 不对或已过期。"
-    if "404" in m or "model_not_found" in m or "does not exist" in m or "no such model" in m:
-        return "模型不存在：检查「文字模型」的拼写，或该服务是否提供这个模型。"
-    if "timed out" in m or "timeout" in m or "超时" in m:
-        return "连接超时：服务地址可达但响应太慢，或网络受限。"
-    if "connection" in m or "resolve" in m or "getaddrinfo" in m or "refused" in m or "unreachable" in m:
-        return "连不上服务地址：检查「服务地址」拼写（OpenAI 兼容服务通常以 /v1 结尾）。"
-    return "测试失败：" + message[:200]
 
 
 def card_to_dict(card: Card, linked: list[Card] | None = None,
@@ -277,6 +264,9 @@ def make_handler():
                 )
                 reply = (resp.choices[0].message.content or "").strip()
                 return self._json(200, {"ok": True, "reply": reply[:40] or "（空响应）"})
+            except GlossError as exc:
+                # llm 层已做 key 脱敏 + 可读分类，直接透传，避免二次包装
+                return self._json(200, {"ok": False, "error": str(exc)})
             except Exception as exc:
                 return self._json(200, {"ok": False, "error": classify_llm_error(str(exc))})
 

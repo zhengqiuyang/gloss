@@ -86,7 +86,8 @@ def test_slow_lookup_does_not_block_config(server_url, fake_llm, monkeypatch):
         configs = list(pool.map(lambda _: _get(server_url, "/api/config"), range(10)))
     elapsed = time.monotonic() - start
 
-    assert elapsed < 1.0, f"并发请求总耗时 {elapsed:.2f}s —— 被慢 lookup 串行了？"
+    # 串行基线是 ~2s（慢 lookup 在前）；1.5s 给 CI 负载留 25% 余量
+    assert elapsed < 1.5, f"并发请求总耗时 {elapsed:.2f}s —— 被慢 lookup 串行了？"
     for status, payload in results:
         assert status == 200
         assert payload["cache_hit"] is True

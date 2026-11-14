@@ -173,3 +173,91 @@ def test_plain_failure_is_wrapped():
     with pytest.raises(GlossError) as exc:
         llm.chat_json("sys", "user")
     assert "调用模型失败" in str(exc.value)
+
+
+# -- G-P2-2: max_tokens 可选 + 400 回退 + 429/5xx 分类 + key 脱敏 --------------
+
+
+def _llm_with_cfg_and_client(llm_overrides, responses):
+    llm = _llm(llm={
+        "base_url": "http://x/v1", "model": "m", "vision_model": "",
+        "timeout": 1, "api_key": "", **llm_overrides,
+    })
+    shell = type("Client", (), {})()
+    shell.chat = type("Chat", (), {})()
+    shell.chat.completions = _FakeCompletions(responses)
+    llm._client = shell
+    return llm
+
+
+def test_max_tokens_not_sent_by_default():
+    llm = _llm_with_client(['{"ok": 1}'])
+    llm.chat_json("sys", "user")
+    assert "max_tokens" not in llm._client.chat.completions.calls[0]
+
+
+def test_max_tokens_sent_when_positive():
+    llm = _llm_with_cfg_and_client({"max_tokens": 500}, ['{"ok": 1}'])
+    llm.chat_json("sys", "user")
+    assert llm._client.chat.completions.calls[0]["max_tokens"] == 500
+
+
+def test_max_tokens_400_falls_back_once_without_it():
+    err = Exception("Error code: 400 - max_tokens is not supported by this provider")
+    llm = _llm_with_cfg_and_client({"max_tokens": 500}, [err, '{"ok": 1}'])
+    data, _ = llm.chat_json("sys", "user")
+    assert data == {"ok": 1}
+    calls = llm._client.chat.completions.calls
+    assert len(calls) == 2
+    assert "max_tokens" in calls[0]
+    assert "max_tokens" not in calls[1]
+
+
+def test_unrelated_400_keeps_max_tokens():
+    err = Exception("Error code: 400 - something else broke")
+    llm = _llm_with_cfg_and_client({"max_tokens": 500}, [err])
+    with pytest.raises(GlossError):
+        llm.chat_json("sys", "user")
+    assert len(llm._client.chat.completions.calls) == 1  # 与 max_tokens 无关的 400 不回退
+
+
+def test_429_is_friendly():
+    llm = _llm_with_client([Exception("Error code: 429 - rate limit exceeded")])
+    with pytest.raises(GlossError) as exc:
+        llm.chat_json("sys", "user")
+    assert "请求太频繁" in str(exc.value)
+    assert "429" not in str(exc.value)  # 命中已知模式时不透传原始码
+
+
+def test_5xx_is_friendly():
+    llm = _llm_with_client([Exception("Error code: 503 - upstream unavailable")])
+    with pytest.raises(GlossError) as exc:
+        llm.chat_json("sys", "user")
+    assert "服务端故障" in str(exc.value)
+
+
+def test_error_message_scrubs_api_key():
+    llm = _llm_with_cfg_and_client(
+        {"api_key": "sk-secret-key-1"},
+        [Exception("boom at sk-secret-key-1 endpoint")],
+    )
+    with pytest.raises(GlossError) as exc:
+        llm.chat_json("sys", "user")
+    assert "sk-secret-key-1" not in str(exc.value)
+    assert "***" in str(exc.value)
+
+
+def test_unknown_error_keeps_detail():
+    llm = _llm_with_client([Exception("weird provider glitch XYZZY")])
+    with pytest.raises(GlossError) as exc:
+        llm.chat_json("sys", "user")
+    assert "调用模型失败" in str(exc.value)
+    assert "XYZZY" in str(exc.value)  # 未命中已知模式时保留原始细节
+
+
+def test_server_classifier_reexport():
+    from gloss.llm import classify_llm_error as llm_classify
+    from gloss.server import classify_llm_error as server_classify
+
+    assert server_classify is llm_classify  # server 引用同一实现
+    assert server_classify("Error code: 429 - x") == llm_classify("Error code: 429 - x")
