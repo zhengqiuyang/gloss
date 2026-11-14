@@ -86,7 +86,7 @@ def test_review_and_stats(runner, home, fake_llm):
 def test_config_set_and_show_masks_key(runner, home):
     result = runner.invoke(cli, ["config", "set", "llm.model", "glm-4-flash"])
     assert result.exit_code == 0, result.output
-    assert "glm-4-flash" in config_path().read_text(encoding="utf-8")
+    assert False, "CI 破坏性验证：故意失败"
 
     runner.invoke(cli, ["config", "set", "llm.api_key", "sk-secret-12345678"])
     out = runner.invoke(cli, ["config", "show"]).output
