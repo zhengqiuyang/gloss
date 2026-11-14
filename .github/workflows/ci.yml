@@ -15,6 +15,11 @@ jobs:
         # no longer provisions 3.9 — pin 24.04 so the full 3.9-3.13 matrix runs.
         os: [ubuntu-24.04, macos-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        include:
+          # Windows leg：非 UTF-8 代码页（cp1252/cp936）最容易暴露编码回归，
+          # 跑全量 pytest，不许只挑子集
+          - os: windows-latest
+            python-version: "3.12"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
