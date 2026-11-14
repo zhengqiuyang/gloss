@@ -47,9 +47,7 @@ dev = [
     "pytest-cov>=5.0",
     "coverage[toml]>=7.4",
     "ruff>=0.6",
-    # mypy >=1.20 不再支持 python_version="3.9" 目标（也不装在 3.9 解释器上）。
-    # 3.9 兼容地板还在，先锁 1.19.x；地板升到 3.10 后放开。
-    "mypy>=1.10,<1.20",
+    "mypy>=1.10",
 ]
 # 平台专属 GUI：macOS 菜单栏应用用 pyobjc，Windows 原生无边框弹窗用 pywebview(WebView2) + 托盘图标(pystray)
 app = [
@@ -91,7 +89,10 @@ select = ["E", "F", "I", "UP", "B"]
 "src/gloss/server.py" = ["E501"]
 
 [tool.mypy]
-python_version = "3.9"
+# mypy 目标只是选 stdlib stubs 版本；≥1.20 不再支持 3.9 目标，且第三方库源码
+# （click/pydantic 的 match 语句）在 3.9 目标下解析不了。真正的 3.9 兼容由
+# ruff target-version="py39"（语法层）+ CI 的 3.9 测试 leg（运行层）把关。
+python_version = "3.10"
 ignore_missing_imports = true
 warn_unused_ignores = true
 files = ["src/gloss"]
