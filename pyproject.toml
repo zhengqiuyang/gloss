@@ -47,7 +47,9 @@ dev = [
     "pytest-cov>=5.0",
     "coverage[toml]>=7.4",
     "ruff>=0.6",
-    "mypy>=1.10",
+    # mypy >=1.20 不再支持 python_version="3.9" 目标（也不装在 3.9 解释器上）。
+    # 3.9 兼容地板还在，先锁 1.19.x；地板升到 3.10 后放开。
+    "mypy>=1.10,<1.20",
 ]
 # 平台专属 GUI：macOS 菜单栏应用用 pyobjc，Windows 原生无边框弹窗用 pywebview(WebView2) + 托盘图标(pystray)
 app = [

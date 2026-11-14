@@ -656,7 +656,7 @@ def _click_hidden_eof_safe() -> bool:
     — and its hidden prompt would read the real console under fake stdin.
     """
     try:
-        major, minor = (int(p) for p in click.__version__.split(".")[:2])
+        major, minor = (int(p) for p in str(click.__version__).split(".")[:2])
     except (AttributeError, ValueError):
         return True
     return (major, minor) >= (8, 2)
