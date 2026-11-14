@@ -105,6 +105,31 @@ def _as_str_list(value: Any, max_items: int = 10) -> list[str]:
     return [str(v).strip() for v in value if str(v).strip()][:max_items]
 
 
+def classify_llm_error(message: str) -> str:
+    """Map a raw provider error onto the failure modes users actually hit.
+
+    从 server.py 移入：所有 LLM 调用路径（CLI / 弹窗 / 设置页）共用同一套
+    可读错误；_wrap 在抛 GlossError 前先分类，未命中模式则保留原始细节。
+    """
+    m = message.lower()
+    if "401" in m or "unauthorized" in m or "invalid api key" in m or "authentication" in m:
+        return "认证失败：API key 不对或已过期。"
+    if "404" in m or "model_not_found" in m or "does not exist" in m or "no such model" in m:
+        return "模型不存在：检查「文字模型」的拼写，或该服务是否提供这个模型。"
+    if "timed out" in m or "timeout" in m or "超时" in m:
+        return "连接超时：服务地址可达但响应太慢，或网络受限。"
+    if ("connection" in m or "resolve" in m or "getaddrinfo" in m
+            or "refused" in m or "unreachable" in m):
+        return "连不上服务地址：检查「服务地址」拼写（OpenAI 兼容服务通常以 /v1 结尾）。"
+    # 429 / 5xx 用词边界匹配，避免把 "tokens: 15000" 之类的数字误判成状态码
+    if re.search(r"\b429\b", m) or "rate limit" in m or "too many requests" in m or "配额" in m:
+        return "请求太频繁：触发服务商限流或配额用尽，稍等几秒再试。"
+    if (re.search(r"\b5\d{2}\b", m) or "bad gateway" in m
+            or "internal server error" in m or "server error" in m):
+        return "服务端故障：服务商暂时不可用，稍后再试。"
+    return "测试失败：" + message[:200]
+
+
 class GlossLLM:
     """Thin wrapper over an OpenAI-compatible chat completion endpoint."""
 
@@ -161,30 +186,62 @@ class GlossLLM:
             {"role": "user", "content": content},
         ]
         client = self.client  # 未配 key 的友好报错在属性里，别让它被网络错误的包装盖住
+        # max_tokens 可选：0 = 不传（部分兼容服务对它直接 400）
+        extra: dict[str, Any] = {}
+        max_tokens = int(self.cfg["llm"].get("max_tokens") or 0)
+        if max_tokens > 0:
+            extra["max_tokens"] = max_tokens
         try:
             resp = client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=0.2,
                 response_format={"type": "json_object"},
+                **extra,
             )
         except Exception as exc:
-            if "response_format" not in str(exc):
-                raise GlossError(f"调用模型失败: {exc}") from exc
-            # Some OpenAI-compatible servers reject response_format; retry plain,
-            # with the same friendly wrapping as the first attempt.
-            try:
-                resp = self.client.chat.completions.create(
-                    model=model, messages=messages, temperature=0.2
-                )
-            except Exception as retry_exc:
-                raise GlossError(f"调用模型失败: {retry_exc}") from retry_exc
+            message = str(exc)
+            if "max_tokens" in extra and "max_tokens" in message:
+                # 400 明确提到 max_tokens：去掉重试一次
+                extra.pop("max_tokens")
+                try:
+                    resp = client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=0.2,
+                        response_format={"type": "json_object"},
+                        **extra,
+                    )
+                except Exception as retry_exc:
+                    raise self._wrap(retry_exc) from retry_exc
+            elif "response_format" in message:
+                # Some OpenAI-compatible servers reject response_format; retry plain,
+                # with the same friendly wrapping as the first attempt.
+                try:
+                    resp = client.chat.completions.create(
+                        model=model, messages=messages, temperature=0.2, **extra
+                    )
+                except Exception as retry_exc:
+                    raise self._wrap(retry_exc) from retry_exc
+            else:
+                raise self._wrap(exc) from exc
         usage = resp.usage
         tokens = getattr(usage, "total_tokens", 0) if usage else 0
         text = resp.choices[0].message.content or ""
         if not text.strip():
             raise GlossError("模型返回了空内容")
         return text, tokens
+
+    def _wrap(self, exc: Exception) -> GlossError:
+        """Provider error -> GlossError：先抹掉配置里的 key，再套可读分类。"""
+        message = str(exc)
+        key = str(self.cfg["llm"].get("api_key") or "")
+        if key and key in message:
+            message = message.replace(key, "***")
+        friendly = classify_llm_error(message)
+        if friendly.startswith("测试失败："):
+            friendly = friendly[len("测试失败："):]  # 未命中已知模式，保留原始细节
+        return GlossError(f"调用模型失败: {friendly}")
 
     def chat_json(
         self, system: str, user: str, image_path: str | None = None

@@ -26,6 +26,8 @@ DEFAULT_CONFIG: dict[str, dict[str, Any]] = {
         "vision_model": "",
         "api_key": "",
         "timeout": 60,
+        # 0 = 不传 max_tokens（部分兼容服务会 400）；>0 才传给 chat.completions
+        "max_tokens": 0,
     },
     "glossary": {
         "language": "中文",
@@ -62,6 +64,7 @@ _CONFIG_SCHEMA: dict[str, Callable[[str], Any]] = {
     "llm.vision_model": str,
     "llm.api_key": str,
     "llm.timeout": int,
+    "llm.max_tokens": int,
     "glossary.language": str,
     "glossary.translate_target": str,
     "glossary.detail_max_chars": int,

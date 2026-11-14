@@ -17,11 +17,12 @@ this API instead of importing gloss internals.
 from __future__ import annotations
 
 import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from . import clipboard, ingest
 from .config import load_config, resolve_api_key
+from .llm import classify_llm_error  # 分类器移入 llm；server.classify_llm_error 仍可用
 from .models import Card, GlossError
 
 DEFAULT_PORT = 7789
@@ -55,20 +56,6 @@ def settings_payload() -> dict[str, Any]:
         "auto_lookup": app_.get("auto_lookup", True),
         "has_api_key": resolve_api_key(cfg) is not None,
     }
-
-
-def classify_llm_error(message: str) -> str:
-    """Map a raw provider error onto the four failure modes users actually hit."""
-    m = message.lower()
-    if "401" in m or "unauthorized" in m or "invalid api key" in m or "authentication" in m:
-        return "认证失败：API key 不对或已过期。"
-    if "404" in m or "model_not_found" in m or "does not exist" in m or "no such model" in m:
-        return "模型不存在：检查「文字模型」的拼写，或该服务是否提供这个模型。"
-    if "timed out" in m or "timeout" in m or "超时" in m:
-        return "连接超时：服务地址可达但响应太慢，或网络受限。"
-    if "connection" in m or "resolve" in m or "getaddrinfo" in m or "refused" in m or "unreachable" in m:
-        return "连不上服务地址：检查「服务地址」拼写（OpenAI 兼容服务通常以 /v1 结尾）。"
-    return "测试失败：" + message[:200]
 
 
 def card_to_dict(card: Card, linked: list[Card] | None = None,
@@ -107,10 +94,23 @@ def make_handler():
         def log_message(self, *args):  # keep the popup quiet
             pass
 
-        def _json(self, code: int, payload: dict[str, Any]) -> None:
+        def end_headers(self) -> None:
+            """所有响应统一携带的保守安全头。
+
+            P2 决策：gloss 弹窗页是内联 script/style，CSP 只能 unsafe-inline
+            （自欺欺人），等重构成 nonce 再上；这里只加两个不碍事的。
+            """
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+            super().end_headers()
+
+        def _json(self, code: int, payload: dict[str, Any],
+                  cache_control: str | None = None) -> None:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self.send_response(code)
             self.send_header("Content-Type", "application/json; charset=utf-8")
+            if cache_control:
+                self.send_header("Cache-Control", cache_control)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -120,7 +120,8 @@ def make_handler():
 
             route = urlparse(self.path)
             if route.path == "/api/config":
-                return self._json(200, settings_payload())
+                # 配置里有脱敏后的 key 片段，禁止中间层缓存
+                return self._json(200, settings_payload(), cache_control="no-store")
             if route.path != "/":
                 return self._json(404, {"error": "not found"})
             glass = "1" in parse_qs(route.query).get("glass", [])
@@ -256,7 +257,8 @@ def make_handler():
             except GlossError as exc:
                 return self._json(400, {"error": str(exc)})
             return self._json(200, {"ok": True, "saved": list(data.keys()),
-                                    "config": settings_payload()})
+                                    "config": settings_payload()},
+                              cache_control="no-store")
 
         def _config_test(self) -> None:
             cfg = load_config()
@@ -277,6 +279,9 @@ def make_handler():
                 )
                 reply = (resp.choices[0].message.content or "").strip()
                 return self._json(200, {"ok": True, "reply": reply[:40] or "（空响应）"})
+            except GlossError as exc:
+                # llm 层已做 key 脱敏 + 可读分类，直接透传，避免二次包装
+                return self._json(200, {"ok": False, "error": str(exc)})
             except Exception as exc:
                 return self._json(200, {"ok": False, "error": classify_llm_error(str(exc))})
 
@@ -289,9 +294,23 @@ def make_handler():
     return Handler
 
 
-def start_server(port: int = DEFAULT_PORT) -> HTTPServer:
+class GlossServer(ThreadingHTTPServer):
+    """Threaded server: a slow LLM call no longer blocks the settings page.
+
+    DB access is serialized by db._serialized (single connection + RLock);
+    daemon threads so Ctrl+C / shutdown() doesn't hang on in-flight requests.
+    request_queue_size: 默认 listen backlog 只有 5，20 个并发连接在 macOS 上
+    会丢 SYN 触发客户端重试（表现为 ~1-2s 的假串行），本地服务调大到 128。
+    """
+
+    daemon_threads = True
+    allow_reuse_address = True
+    request_queue_size = 128
+
+
+def start_server(port: int = DEFAULT_PORT) -> GlossServer:
     """Bind 127.0.0.1 only; pass port 0 in tests to pick a free one."""
-    return HTTPServer(("127.0.0.1", port), make_handler())
+    return GlossServer(("127.0.0.1", port), make_handler())
 
 
 _PAGE = """<!doctype html>
