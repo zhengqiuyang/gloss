@@ -46,3 +46,19 @@ jobs:
         run: mypy
       - name: Coverage（fail_under 见 pyproject）
         run: pytest --cov=gloss --cov-report=term-missing
+
+  build:
+    # 构建通道验证：sdist/wheel 可构建、可安装、可冒烟（不发 PyPI，发布走 release.yml + 人工 gate）
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build
+        run: uv build
+      - name: Wheel 安装冒烟（fresh venv + 临时 GLOSS_HOME）
+        run: |
+          python -m venv /tmp/wheel-venv
+          /tmp/wheel-venv/bin/python -m pip install dist/*.whl
+          GLOSS_HOME=$(mktemp -d) /tmp/wheel-venv/bin/gloss --version
+          GLOSS_HOME=$(mktemp -d) /tmp/wheel-venv/bin/gloss demo > /dev/null
+          echo "wheel smoke OK"

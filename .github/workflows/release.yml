@@ -1,0 +1,30 @@
+# 发布通道：打 v* tag 触发，构建后通过 PyPI Trusted Publisher 发布。
+#
+# ⚠️ 人工 gate（见交接文档第 10 节）：
+#   1. PyPI 项目首次发布前必须先在 PyPI 配置 Trusted Publisher
+#      （指向本 repo + 本 workflow，environment: pypi）；
+#   2. 首发版本 0.2.0 由用户确认后才打 tag。
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  pypi-publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # Trusted Publisher 的 OIDC 凭证
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build
+        run: uv build
+      - name: Wheel 冒烟（发布前最后一道闸）
+        run: |
+          python -m venv /tmp/wheel-venv
+          /tmp/wheel-venv/bin/python -m pip install dist/*.whl
+          GLOSS_HOME=$(mktemp -d) /tmp/wheel-venv/bin/gloss --version
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
