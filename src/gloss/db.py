@@ -7,8 +7,9 @@ LIKE-based search instead of failing.
 
 from __future__ import annotations
 
+import functools
 import sqlite3
-from collections.abc import Iterable
+import threading
 
 from .models import Card, jdump, norm_term, now_iso
 
@@ -79,8 +80,28 @@ END;
 
 _conn: sqlite3.Connection | None = None
 _fts_enabled = True
+_lock = threading.RLock()
 
 
+def _serialized(fn):
+    """Serialize DB access across threads.
+
+    ThreadingHTTPServer handles each request on its own thread while one
+    connection is shared (check_same_thread=False; CPython's sqlite3 is built
+    serialized, so the connection itself is thread-safe). The lock keeps
+    multi-statement transactions from interleaving; RLock so public functions
+    may call each other.
+    """
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with _lock:
+            return fn(*args, **kwargs)
+
+    return wrapper
+
+
+@_serialized
 def connect() -> sqlite3.Connection:
     global _conn, _fts_enabled
     if _conn is not None:
@@ -89,12 +110,15 @@ def connect() -> sqlite3.Connection:
 
     path = db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    # check_same_thread=False: `gloss serve` handles requests in the server
-    # thread while tests/CLI touch the same connection from other threads.
-    # CPython's sqlite3 is built in serialized mode, so this is safe here.
+    # check_same_thread=False: `gloss serve` (ThreadingHTTPServer) handles each
+    # request on its own thread while tests/CLI touch the same connection from
+    # other threads. Cross-thread serialization is db._serialized's job.
     _conn = sqlite3.connect(path, check_same_thread=False)
     _conn.row_factory = sqlite3.Row
     _conn.execute("PRAGMA foreign_keys = ON")
+    # WAL: serve 进程写、CLI 进程读时互不阻塞；busy_timeout 兜底跨进程写冲突
+    _conn.execute("PRAGMA journal_mode = WAL")
+    _conn.execute("PRAGMA busy_timeout = 5000")
     _conn.executescript(_SCHEMA)
     try:
         _conn.executescript(_FTS_DDL)
@@ -151,6 +175,7 @@ def _mentions(card: Card, other_id: int) -> bool:
     )
 
 
+@_serialized
 def close() -> None:
     global _conn
     if _conn is not None:
@@ -162,6 +187,7 @@ def close() -> None:
 # Cards
 # ---------------------------------------------------------------------------
 
+@_serialized
 def insert_card(card: Card) -> Card:
     conn = connect()
     row = card.to_row()
@@ -178,6 +204,7 @@ def insert_card(card: Card) -> Card:
     return card
 
 
+@_serialized
 def update_card(card: Card) -> None:
     conn = connect()
     row = card.to_row()
@@ -193,6 +220,7 @@ def update_card(card: Card) -> None:
     conn.commit()
 
 
+@_serialized
 def get_card(name: str) -> Card | None:
     """Exact lookup by term or alias, case-insensitive."""
     key = norm_term(name)
@@ -208,11 +236,13 @@ def get_card(name: str) -> Card | None:
     return Card.from_row(row) if row else None
 
 
+@_serialized
 def get_card_by_id(card_id: int) -> Card | None:
     row = connect().execute("SELECT * FROM cards WHERE id = ?", (card_id,)).fetchone()
     return Card.from_row(row) if row else None
 
 
+@_serialized
 def delete_card(card_id: int) -> bool:
     """Delete a card; cascades its links and alias index via foreign keys."""
     cur = connect().execute("DELETE FROM cards WHERE id = ?", (card_id,))
@@ -220,6 +250,7 @@ def delete_card(card_id: int) -> bool:
     return cur.rowcount > 0
 
 
+@_serialized
 def get_meta(key: str) -> str | None:
     row = connect().execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
     return row["value"] if row else None
@@ -230,6 +261,7 @@ def get_meta(key: str) -> str | None:
 # sentences are content, not terms — they shouldn't pollute FTS or graphs)
 # ---------------------------------------------------------------------------
 
+@_serialized
 def get_translation(hash_: str) -> dict | None:
     row = connect().execute(
         "SELECT * FROM translations WHERE hash = ?", (hash_,)
@@ -237,6 +269,7 @@ def get_translation(hash_: str) -> dict | None:
     return dict(row) if row else None
 
 
+@_serialized
 def insert_translation(hash_: str, source: str, target_lang: str,
                        translation: str, tokens: int) -> dict:
     conn = connect()
@@ -252,6 +285,7 @@ def insert_translation(hash_: str, source: str, target_lang: str,
     return inserted
 
 
+@_serialized
 def increment_translation_hit(id_: int) -> None:
     conn = connect()
     conn.execute(
@@ -260,6 +294,7 @@ def increment_translation_hit(id_: int) -> None:
     conn.commit()
 
 
+@_serialized
 def set_meta(key: str, value: str) -> None:
     connect().execute(
         "INSERT INTO meta (key, value) VALUES (?, ?) "
@@ -269,6 +304,7 @@ def set_meta(key: str, value: str) -> None:
     connect().commit()
 
 
+@_serialized
 def increment_hit(card_id: int) -> None:
     conn = connect()
     conn.execute(
@@ -277,6 +313,7 @@ def increment_hit(card_id: int) -> None:
     conn.commit()
 
 
+@_serialized
 def list_cards(
     card_type: str | None = None,
     tag: str | None = None,
@@ -298,6 +335,7 @@ def list_cards(
     return [Card.from_row(r) for r in connect().execute(query, params)]
 
 
+@_serialized
 def all_terms(limit: int = 200) -> list[str]:
     rows = connect().execute(
         "SELECT term FROM cards ORDER BY hit_count DESC, id DESC LIMIT ?", (limit,)
@@ -326,6 +364,7 @@ def _like_search(query: str, limit: int) -> list[Card]:
     return [Card.from_row(r) for r in rows]
 
 
+@_serialized
 def search(query: str, limit: int = 20) -> list[Card]:
     results: list[Card] = []
     seen: set = set()
@@ -354,6 +393,7 @@ def search(query: str, limit: int = 20) -> list[Card]:
 # Links (undirected) and pending related-name backfill
 # ---------------------------------------------------------------------------
 
+@_serialized
 def add_link(a_id: int, b_id: int) -> bool:
     """Link two cards; returns False if the link already existed."""
     if a_id == b_id:
@@ -367,6 +407,7 @@ def add_link(a_id: int, b_id: int) -> bool:
     return cur.rowcount > 0
 
 
+@_serialized
 def neighbors(card_id: int) -> list[Card]:
     rows = connect().execute(
         """SELECT c.* FROM links l
@@ -378,6 +419,7 @@ def neighbors(card_id: int) -> list[Card]:
     return [Card.from_row(r) for r in rows]
 
 
+@_serialized
 def has_link(a_id: int, b_id: int) -> bool:
     lo, hi = min(a_id, b_id), max(a_id, b_id)
     row = connect().execute(
@@ -386,6 +428,7 @@ def has_link(a_id: int, b_id: int) -> bool:
     return row is not None
 
 
+@_serialized
 def resolve_related(card: Card) -> tuple[list[Card], list[str]]:
     """Create links for the card's related_names that resolve to local cards.
 
@@ -406,6 +449,7 @@ def resolve_related(card: Card) -> tuple[list[Card], list[str]]:
     return linked, pending
 
 
+@_serialized
 def pending_names(card: Card) -> list[str]:
     """Names in related_names that don't resolve to a local card yet."""
     pending: list[str] = []
@@ -416,6 +460,7 @@ def pending_names(card: Card) -> list[str]:
     return pending
 
 
+@_serialized
 def backfill_links(card: Card) -> list[Card]:
     """Materialize links from cards whose related_names mention this card.
 
@@ -446,6 +491,7 @@ def backfill_links(card: Card) -> list[Card]:
     return newly_linked
 
 
+@_serialized
 def prune_stale_links(card: Card, old_neighbor_ids: set) -> list[int]:
     """After a replace-style edit, drop old links neither side still justifies.
 
@@ -489,6 +535,7 @@ def prune_stale_links(card: Card, old_neighbor_ids: set) -> list[int]:
 # Stats / review
 # ---------------------------------------------------------------------------
 
+@_serialized
 def counts() -> dict:
     conn = connect()
     total = conn.execute("SELECT COUNT(*) AS n FROM cards").fetchone()["n"]
@@ -508,6 +555,7 @@ def counts() -> dict:
     }
 
 
+@_serialized
 def created_since(days: int) -> list[Card]:
     rows = connect().execute(
         """SELECT * FROM cards
@@ -518,6 +566,7 @@ def created_since(days: int) -> list[Card]:
     return [Card.from_row(r) for r in rows]
 
 
+@_serialized
 def top_hits(limit: int = 5) -> list[Card]:
     rows = connect().execute(
         "SELECT * FROM cards WHERE hit_count > 0 ORDER BY hit_count DESC LIMIT ?",
@@ -526,6 +575,7 @@ def top_hits(limit: int = 5) -> list[Card]:
     return [Card.from_row(r) for r in rows]
 
 
-def iter_all() -> Iterable[Card]:
-    for row in connect().execute("SELECT * FROM cards ORDER BY term"):
-        yield Card.from_row(row)
+@_serialized
+def iter_all() -> list[Card]:
+    rows = connect().execute("SELECT * FROM cards ORDER BY term")
+    return [Card.from_row(r) for r in rows]

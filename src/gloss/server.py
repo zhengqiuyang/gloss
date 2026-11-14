@@ -17,7 +17,7 @@ this API instead of importing gloss internals.
 from __future__ import annotations
 
 import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from . import clipboard, ingest
@@ -289,9 +289,20 @@ def make_handler():
     return Handler
 
 
-def start_server(port: int = DEFAULT_PORT) -> HTTPServer:
+class GlossServer(ThreadingHTTPServer):
+    """Threaded server: a slow LLM call no longer blocks the settings page.
+
+    DB access is serialized by db._serialized (single connection + RLock);
+    daemon threads so Ctrl+C / shutdown() doesn't hang on in-flight requests.
+    """
+
+    daemon_threads = True
+    allow_reuse_address = True
+
+
+def start_server(port: int = DEFAULT_PORT) -> GlossServer:
     """Bind 127.0.0.1 only; pass port 0 in tests to pick a free one."""
-    return HTTPServer(("127.0.0.1", port), make_handler())
+    return GlossServer(("127.0.0.1", port), make_handler())
 
 
 _PAGE = """<!doctype html>
