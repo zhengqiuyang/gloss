@@ -86,7 +86,7 @@ def test_review_and_stats(runner, home, fake_llm):
 def test_config_set_and_show_masks_key(runner, home):
     result = runner.invoke(cli, ["config", "set", "llm.model", "glm-4-flash"])
     assert result.exit_code == 0, result.output
-    assert "glm-4-flash" in config_path().read_text()
+    assert "glm-4-flash" in config_path().read_text(encoding="utf-8")
 
     runner.invoke(cli, ["config", "set", "llm.api_key", "sk-secret-12345678"])
     out = runner.invoke(cli, ["config", "show"]).output
@@ -107,13 +107,13 @@ def test_export_json_and_md(runner, home, fake_llm, tmp_path):
 
     result = runner.invoke(cli, ["export", "--format", "json", "--out", str(out_dir / "b.json")])
     assert result.exit_code == 0, result.output
-    payload = json.loads((out_dir / "b.json").read_text())
+    payload = json.loads((out_dir / "b.json").read_text(encoding="utf-8"))
     terms = {c["term"] for c in payload["cards"]}
     assert {"RAG", "Embedding"} <= terms
 
     result = runner.invoke(cli, ["export", "--out", str(out_dir / "md")])
     assert result.exit_code == 0, result.output
-    rag_md = (out_dir / "md" / "RAG.md").read_text()
+    rag_md = (out_dir / "md" / "RAG.md").read_text(encoding="utf-8")
     assert 'term: "RAG"' in rag_md  # YAML quoting
     assert "[[Embedding|Embedding]]" in rag_md  # link target = real filename
     assert (out_dir / "md" / "index.md").exists()

@@ -14,10 +14,12 @@ from gloss import config
 def test_default_shortcut_for_each_platform(home, monkeypatch, platform, expected, stored):
     if stored:
         home.mkdir(parents=True, exist_ok=True)
-        (home/'config.toml').write_text('[app]\nhotkey = '+json.dumps(stored)+'\n')
+        (home/'config.toml').write_text('[app]\nhotkey = '+json.dumps(stored)+'\n',
+                                        encoding='utf-8')
     namespace = {'__name__':'gloss._config_shortcut_test', '__package__':'gloss'}
     monkeypatch.setattr(sys, 'platform', platform)
-    exec(compile(Path(config.__file__).read_text(), config.__file__, 'exec'), namespace)
+    exec(compile(Path(config.__file__).read_text(encoding='utf-8'),
+                 config.__file__, 'exec'), namespace)
     actual = namespace['load_config']()['app']['hotkey']
     assert actual == ('ctrl+shift+k' if stored == 'ctrl+shift+k' else expected)
     if platform == 'win32' and actual == 'ctrl+g':
@@ -27,8 +29,9 @@ def test_default_shortcut_for_each_platform(home, monkeypatch, platform, expecte
 
 def test_legacy_windows_cmd_g_uses_ctrl_g(home, monkeypatch):
     home.mkdir(parents=True, exist_ok=True)
-    (home/'config.toml').write_text('[app]\nhotkey = "cmd+g"\n')
+    (home/'config.toml').write_text('[app]\nhotkey = "cmd+g"\n', encoding='utf-8')
     namespace = {'__name__':'gloss._config_shortcut_test', '__package__':'gloss'}
     monkeypatch.setattr(sys, 'platform', 'win32')
-    exec(compile(Path(config.__file__).read_text(), config.__file__, 'exec'), namespace)
+    exec(compile(Path(config.__file__).read_text(encoding='utf-8'),
+                 config.__file__, 'exec'), namespace)
     assert namespace['load_config']()['app']['hotkey'] == 'ctrl+g'
