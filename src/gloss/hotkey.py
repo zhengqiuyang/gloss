@@ -240,7 +240,12 @@ def _hotkey_loop(raise_errors: bool) -> None:
     else:
         # 用户组合非法或被占用 → 换兜底组合注册（与 macOS 默认对齐）
         fallback = parse_hotkey(FALLBACK_SPEC)
-        assert fallback is not None  # FALLBACK_SPEC 是内置合法值，解析必成功
+        if fallback is None:  # 理论不可达：FALLBACK_SPEC 是内置合法值
+            message = f"内部错误：兜底热键 {FALLBACK_SPEC!r} 解析失败，请回报此问题"
+            if raise_errors:
+                raise GlossError(message)
+            console.print(f"[red]{glyph('✗', 'X')} {message}[/red]")
+            os._exit(1)
         if not user32.RegisterHotKey(None, HOTKEY_ID, fallback[0], fallback[1]):
             message = (
                 f"全局热键注册失败（{FALLBACK_SPEC} 也被占用）。可能已经有一个 "
@@ -255,6 +260,7 @@ def _hotkey_loop(raise_errors: bool) -> None:
             f"[yellow]配置的热键 {spec!r} 注册失败，"
             f"已改用 {FALLBACK_SPEC}（对齐 macOS 的 {glyph('⌘', 'Cmd+')}G）[/yellow]"
         )
+        console.print(f"[dim]呼出键 {fallback[2]} · 退出键 Ctrl+Alt+Shift+G[/dim]")
 
     quit_parsed = parse_hotkey(QUIT_SPEC)
     if quit_parsed:
