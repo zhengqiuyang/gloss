@@ -5,10 +5,10 @@
 不存在每请求新建连接，也不出现「SQLite objects created in a thread」。
 """
 
+import http.client
 import json
 import threading
 import time
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -27,20 +27,25 @@ def server_url(home, fake_llm):
     srv.server_close()
 
 
+def _request(base, method, path, payload=None):
+    """http.client 不读代理环境变量（macOS runner 的 HTTP_PROXY 会让
+    localhost 请求绕道代理，把并发测试变成假串行）。"""
+    conn = http.client.HTTPConnection(base, timeout=10)
+    body = json.dumps(payload).encode() if payload is not None else None
+    headers = {"Content-Type": "application/json"} if payload is not None else {}
+    conn.request(method, path, body=body, headers=headers)
+    resp = conn.getresponse()
+    data = resp.read()
+    conn.close()
+    return resp.status, json.loads(data) if data else None
+
+
 def _post(base, path, payload):
-    req = urllib.request.Request(
-        f"http://{base}{path}",
-        data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        return resp.status, json.loads(resp.read())
+    return _request(base, "POST", path, payload)
 
 
 def _get(base, path):
-    with urllib.request.urlopen(f"http://{base}{path}", timeout=10) as resp:
-        return resp.status, json.loads(resp.read())
+    return _request(base, "GET", path)
 
 
 def test_slow_lookup_does_not_block_config(server_url, fake_llm, monkeypatch):

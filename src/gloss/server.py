@@ -299,10 +299,13 @@ class GlossServer(ThreadingHTTPServer):
 
     DB access is serialized by db._serialized (single connection + RLock);
     daemon threads so Ctrl+C / shutdown() doesn't hang on in-flight requests.
+    request_queue_size: 默认 listen backlog 只有 5，20 个并发连接在 macOS 上
+    会丢 SYN 触发客户端重试（表现为 ~1-2s 的假串行），本地服务调大到 128。
     """
 
     daemon_threads = True
     allow_reuse_address = True
+    request_queue_size = 128
 
 
 def start_server(port: int = DEFAULT_PORT) -> GlossServer:
