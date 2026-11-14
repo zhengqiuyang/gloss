@@ -15,6 +15,11 @@ jobs:
         # no longer provisions 3.9 — pin 24.04 so the full 3.9-3.13 matrix runs.
         os: [ubuntu-24.04, macos-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        include:
+          # Windows leg：非 UTF-8 代码页（cp1252/cp936）最容易暴露编码回归，
+          # 跑全量 pytest，不许只挑子集
+          - os: windows-latest
+            python-version: "3.12"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -24,3 +29,36 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Test
         run: pytest
+
+  lint:
+    # 单独的 lint job：ruff + mypy + 覆盖率，不在矩阵里重复跑
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Ruff
+        run: ruff check .
+      - name: Mypy
+        run: mypy
+      - name: Coverage（fail_under 见 pyproject）
+        run: pytest --cov=gloss --cov-report=term-missing
+
+  build:
+    # 构建通道验证：sdist/wheel 可构建、可安装、可冒烟（不发 PyPI，发布走 release.yml + 人工 gate）
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build
+        run: uv build
+      - name: Wheel 安装冒烟（fresh venv + 临时 GLOSS_HOME）
+        run: |
+          python -m venv /tmp/wheel-venv
+          /tmp/wheel-venv/bin/python -m pip install dist/*.whl
+          GLOSS_HOME=$(mktemp -d) /tmp/wheel-venv/bin/gloss --version
+          GLOSS_HOME=$(mktemp -d) /tmp/wheel-venv/bin/gloss demo > /dev/null
+          echo "wheel smoke OK"

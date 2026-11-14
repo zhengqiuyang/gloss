@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from gloss import db, export
-
 from conftest import make_card
+
+from gloss import db, export
 
 
 def _export(home, tmp_path):

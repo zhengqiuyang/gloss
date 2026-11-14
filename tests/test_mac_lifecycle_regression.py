@@ -40,7 +40,10 @@ def test_enabling_loaded_startup_is_idempotent(home, tmp_path, monkeypatch):
     monkeypatch.setattr(appctl, 'plist_path', lambda: path)
     monkeypatch.setattr(appctl, 'startup_loaded', lambda: True)
     calls = []
-    monkeypatch.setattr(appctl, '_launchctl', lambda *args: calls.append(args) or (False, 'already loaded'))
+    monkeypatch.setattr(
+        appctl, '_launchctl',
+        lambda *args: calls.append(args) or (False, 'already loaded'),
+    )
     assert appctl.install_startup() == path
     assert calls == []
 
@@ -136,7 +139,9 @@ def test_unknown_launchd_status_is_not_reported_unloaded(home, monkeypatch):
 
 def test_launchd_missing_service_and_loaded_status(home, monkeypatch):
     monkeypatch.setattr(sys, 'platform', 'darwin')
-    monkeypatch.setattr(appctl, '_launchctl', lambda *a: (False, 'Could not find service x in domain'))
+    monkeypatch.setattr(
+        appctl, '_launchctl', lambda *a: (False, 'Could not find service x in domain'),
+    )
     assert appctl.startup_loaded() is False
     monkeypatch.setattr(appctl, '_launchctl', lambda *a: (True, 'service = {}'))
     assert appctl.startup_loaded() is True
@@ -198,7 +203,9 @@ def test_startup_payload_forwards_no_hotkey(home):
 def test_kickstart_timeout_still_checks_authenticated_readiness(home, monkeypatch):
     identities = iter([None, None, 123])
     monkeypatch.setattr(appctl, 'running_instance', lambda: next(identities))
-    monkeypatch.setattr(appctl, '_launchctl', lambda *a: (False, 'kickstart timed out after 10 seconds'))
+    monkeypatch.setattr(
+        appctl, '_launchctl', lambda *a: (False, 'kickstart timed out after 10 seconds'),
+    )
     monkeypatch.setattr(appctl.time, 'sleep', lambda _: None)
     assert appctl.ensure_startup_running() == 123
 

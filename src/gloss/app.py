@@ -16,7 +16,7 @@ import ctypes
 import os
 import signal
 import threading
-from typing import Callable, Optional
+from typing import Callable
 
 from .config import gloss_home
 from .models import GlossError
@@ -56,7 +56,7 @@ _EVENT_CLASS_KEYBOARD = 0x6B657962  # kEventClassKeyboard = 'keyb'
 _EVENT_HOT_KEY_PRESSED = 5          # Carbon Events.h: kEventHotKeyPressed = 5
 
 
-def parse_hotkey(spec: str) -> Optional[tuple]:
+def parse_hotkey(spec: str) -> tuple | None:
     """'cmd+g' -> (keycode, carbon_modifiers, display) ; None if invalid."""
     parts = [p.strip().lower() for p in spec.split("+") if p.strip()]
     if len(parts) < 2:
@@ -120,7 +120,7 @@ def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
 
     from .config import load_config
     from .server import start_server
-    from .ui import console
+    from .ui import console, glyph
 
     appctl.write_pid(os.getpid())  # diagnostics; the lock is the real mutex
     atexit.register(_release_app_lock)
@@ -134,7 +134,8 @@ def run_app(no_hotkey: bool = False, show_on_start: bool = True) -> None:
     parsed = parse_hotkey(spec)
     display = parsed[2] if parsed and not no_hotkey else "菜单栏"
     console.print(
-        f"[green]📖 gloss 常驻已启动[/green]（菜单栏图标 · {display} 呼出弹窗 · Ctrl+C 退出）"
+        f"[green]{glyph('📖', '')} gloss 常驻已启动[/green]"
+        f"（菜单栏图标 · {display} 呼出弹窗 · Ctrl+C 退出）"
     )
     try:
         _run_gui(port=port, no_hotkey=no_hotkey, show_on_start=show_on_start)
@@ -166,8 +167,8 @@ def _sigterm_stop(signum, frame) -> None:
 def _run_gui(port: int, no_hotkey: bool, show_on_start: bool) -> None:
     global _ACTIVE_CONTROL
     import AppKit as A
-    from . import appctl
 
+    from . import appctl
     from .config import load_config
 
     spec = load_config()["app"]["hotkey"]
@@ -182,7 +183,7 @@ def _run_gui(port: int, no_hotkey: bool, show_on_start: bool) -> None:
     app.setActivationPolicy_(A.NSApplicationActivationPolicyAccessory)  # no Dock icon
     app.setDelegate_(delegate)
 
-    from .ui import console
+    from .ui import console, glyph
 
     _log(f"app start: port={port} spec={spec!r} parsed={parsed}")
     if not no_hotkey:
@@ -205,8 +206,9 @@ def _run_gui(port: int, no_hotkey: bool, show_on_start: bool) -> None:
             _log(f"hotkey registered: {spec!r} -> {parsed[2]}")
             if parsed[1] == _MOD_MAP["cmd"] and len(spec.split("+")) == 2:
                 console.print(
-                    "[yellow]提示: ⌘+单键 是全局热键，gloss 运行期间会接管其他应用里的同款快捷键"
-                    "（如 ⌘G 的“查找下一个”）。退出 gloss 后恢复[/yellow]"
+                    f"[yellow]提示: {glyph('⌘', 'Cmd')}+单键 是全局热键，"
+                    f"gloss 运行期间会接管其他应用里的同款快捷键"
+                    f"（如 {glyph('⌘', 'Cmd+')}G 的“查找下一个”）。退出 gloss 后恢复[/yellow]"
                 )
 
     if show_on_start:
@@ -296,7 +298,7 @@ def _build_delegate_class():
             color.setStroke()
             path = A.NSBezierPath.bezierPath()
             path.setLineWidth_(1.5)
-            w, h = self.bounds().size.width, self.bounds().size.height
+            w, _h = self.bounds().size.width, self.bounds().size.height
             for i in range(3):
                 o = 4 + i * 5
                 path.moveToPoint_((w - o, 2.5))
@@ -551,11 +553,11 @@ def register_hotkey(callback: Callable[[], None], spec: str = "cmd+g") -> bool:
     if not target:
         return False
 
-    spec = EventTypeSpec(_EVENT_CLASS_KEYBOARD, _EVENT_HOT_KEY_PRESSED)
+    event_spec = EventTypeSpec(_EVENT_CLASS_KEYBOARD, _EVENT_HOT_KEY_PRESSED)
     handler = ctypes.c_void_p()
     if (
         carbon.InstallEventHandler(
-            target, _HOTKEY_REFS[0], 1, ctypes.byref(spec), None, ctypes.byref(handler)
+            target, _HOTKEY_REFS[0], 1, ctypes.byref(event_spec), None, ctypes.byref(handler)
         )
         != 0
     ):

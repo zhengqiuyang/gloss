@@ -21,11 +21,11 @@ import socket
 import socketserver
 import subprocess
 import sys
-import time
 import tempfile
 import threading
+import time
 from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Callable, TextIO
 
 from .config import gloss_home
 from .models import GlossError
@@ -53,7 +53,7 @@ def log_path() -> Path:
     return gloss_home() / "app.log"
 
 
-def read_pid() -> Optional[int]:
+def read_pid() -> int | None:
     try:
         return int(pid_path().read_text(encoding="utf-8").strip())
     except (OSError, ValueError):
@@ -66,7 +66,7 @@ def write_pid(pid: int) -> None:
     path.write_text(str(pid), encoding="utf-8")
 
 
-def remove_pid(expected_pid: Optional[int] = None) -> None:
+def remove_pid(expected_pid: int | None = None) -> None:
     if expected_pid is not None and read_pid() != expected_pid:
         return
     try:
@@ -75,7 +75,7 @@ def remove_pid(expected_pid: Optional[int] = None) -> None:
         pass
 
 
-def is_running(pid: Optional[int]) -> bool:
+def is_running(pid: int | None) -> bool:
     """Existence check that never kills anything.
 
     os.kill(pid, 0) would be the POSIX idiom, but on Windows os.kill with an
@@ -112,7 +112,7 @@ def _instance_path() -> Path:
     return gloss_home() / "app.instance.json"
 
 
-def _read_instance() -> Optional[dict]:
+def _read_instance() -> dict | None:
     try:
         info = json.loads(_instance_path().read_text(encoding="utf-8"))
         if (isinstance(info, dict) and type(info.get("pid")) is int
@@ -130,7 +130,8 @@ def _request_instance(info: dict, action: str = "ping") -> bool:
     try:
         with socket.create_connection(("127.0.0.1", info["port"]),
                                       timeout=CONTROL_TIMEOUT_SECONDS) as sock:
-            sock.sendall(json.dumps({"pid": info["pid"], "token": info["token"], "action": action}).encode() + b"\n")
+            payload = json.dumps({"pid": info["pid"], "token": info["token"], "action": action})
+            sock.sendall(payload.encode() + b"\n")
             with sock.makefile("rb") as reader:
                 reply = json.loads(reader.readline(2048))
         return (isinstance(reply, dict) and reply.get("pid") == info["pid"]
@@ -139,12 +140,12 @@ def _request_instance(info: dict, action: str = "ping") -> bool:
         return False
 
 
-def pid_is_gloss(pid: Optional[int]) -> bool:
+def pid_is_gloss(pid: int | None) -> bool:
     info = _read_instance()
     return bool(info and info["pid"] == pid and _request_instance(info))
 
 
-def running_instance() -> Optional[int]:
+def running_instance() -> int | None:
     # Observers never delete another process's registration. A new lock owner
     # replaces stale records; even a missing diagnostic PID cannot hide it.
     info = _read_instance()
@@ -161,8 +162,8 @@ class InstanceControl:
     def __init__(self, on_stop: Callable[[], None]) -> None:
         self.info = {"pid": os.getpid(), "token": secrets.token_hex(32)}
         self.on_stop = on_stop
-        self.server = None
-        self.thread = None
+        self.server: socketserver.TCPServer | None = None
+        self.thread: threading.Thread | None = None
 
     def start(self) -> None:
         owner = self
@@ -175,8 +176,10 @@ class InstanceControl:
                     if not isinstance(data, dict) or data.get("pid") != owner.info["pid"]:
                         return
                     token = data.get("token")
-                    if (not isinstance(token, str) or not token.isascii()
-                            or not hmac.compare_digest(token, owner.info["token"])):
+                    expected = owner.info["token"]
+                    if (not isinstance(token, str) or not isinstance(expected, str)
+                            or not token.isascii()
+                            or not hmac.compare_digest(token, expected)):
                         return
                     action = data.get("action")
                     if action not in ("ping", "stop"):
@@ -189,10 +192,11 @@ class InstanceControl:
                 except (OSError, ValueError):
                     return
 
-        self.server = socketserver.TCPServer(("127.0.0.1", 0), Handler)
-        self.info["port"] = self.server.server_address[1]
+        server = socketserver.TCPServer(("127.0.0.1", 0), Handler)
+        self.server = server
+        self.info["port"] = server.server_address[1]
         self.thread = threading.Thread(
-            target=self.server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+            target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
         )
         self.thread.start()
         path = _instance_path()
@@ -235,7 +239,7 @@ class InstanceLock:
     """
 
     def __init__(self) -> None:
-        self._fh = None
+        self._fh: TextIO | None = None
 
     def acquire(self, record_pid: bool = True) -> bool:
         if self._fh is not None:
@@ -375,7 +379,7 @@ def wait_stopped(info: dict) -> bool:
     return False
 
 
-def stop() -> Optional[int]:
+def stop() -> int | None:
     """Ask an authenticated instance to quit; never signal a recovered PID."""
     info = _read_instance()
     if info is None or not _request_instance(info):
@@ -467,7 +471,9 @@ def install_startup(no_hotkey: bool = False) -> Path:
             ok, fallback_reason = _launchctl("load", str(path))
             reason = fallback_reason or reason
         if not ok and startup_loaded() is not True:
-            raise GlossError(f"LaunchAgent 已写入但加载失败（{reason or '原因未知'}）。请查看 app.log。")
+            raise GlossError(
+                f"LaunchAgent 已写入但加载失败（{reason or '原因未知'}）。请查看 app.log。"
+            )
     return path
 
 
@@ -510,7 +516,7 @@ def startup_installed() -> bool:
     return plist_path().exists()
 
 
-def startup_loaded() -> Optional[bool]:
+def startup_loaded() -> bool | None:
     """Whether launchd currently has the agent loaded; None = can't tell."""
     if sys.platform != "darwin":
         return None
@@ -523,7 +529,7 @@ def startup_loaded() -> Optional[bool]:
     return None
 
 
-def _launchctl(*args: str) -> Tuple[bool, str]:
+def _launchctl(*args: str) -> tuple[bool, str]:
     """Run launchctl and report (succeeded, reason). Non-darwin: no-op success."""
     if sys.platform != "darwin":
         return True, ""

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any
 from urllib.parse import urlsplit
 
 import click
@@ -13,12 +13,12 @@ import click
 from . import __version__, db, ingest, ui
 from .config import (
     config_path,
+    gloss_home,
     load_config,
     mask_config,
-    set_config_value,
-    gloss_home,
     resolve_api_key,
     save_config,
+    set_config_value,
 )
 from .export import export_json, export_markdown
 from .models import GlossError
@@ -27,18 +27,22 @@ from .models import GlossError
 class FallbackGroup(click.Group):
     """Route anything that isn't a subcommand to `lookup` (or piped stdin handling)."""
 
-    def parse_args(self, ctx: click.Context, args: List[str]) -> List[str]:
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
         if not args and not sys.stdin.isatty():
             # `echo QUIC | gloss` arrives as an empty invocation; rewrite it as
             # `gloss pipe <text>` so the normal machinery routes it.
             args = ["pipe", sys.stdin.read()]
         return super().parse_args(ctx, args)
 
-    def resolve_command(self, ctx: click.Context, args: List[str]) -> Tuple[str, Any, List[str]]:
+    def resolve_command(self, ctx: click.Context, args: list[str]) -> tuple[str, Any, list[str]]:
         try:
-            return super().resolve_command(ctx, args)
+            cmd, cmd_obj, cmd_args = super().resolve_command(ctx, args)
+            assert cmd is not None and cmd_obj is not None  # click 成功路径必返回命令
+            return cmd, cmd_obj, cmd_args
         except click.UsageError:
-            return "lookup", self.get_command(ctx, "lookup"), args
+            fallback = self.get_command(ctx, "lookup")
+            assert fallback is not None  # lookup 是内置命令，必然存在
+            return "lookup", fallback, args
 
 
 @click.command(
@@ -87,7 +91,7 @@ def _present_notified(result: dict) -> None:
         body = f"已收录 · {card.one_liner}"
     notify_ok = notify_mod.send(f"gloss · {card.term}", body)
     if notify_ok:
-        ui.console.print(f"[dim]✓ 已通知: {card.term}[/dim]")
+        ui.console.print(f"[dim]{ui.glyph('✓', 'OK')} 已通知: {card.term}[/dim]")
     else:
         ui.console.print(
             f"[yellow]此平台暂不支持系统通知（目前仅 macOS），卡片已入词库: {card.term}[/yellow]"
@@ -99,14 +103,14 @@ def _present_notified(result: dict) -> None:
 @click.option("--refresh", is_flag=True, help="忽略缓存，重新生成这张卡片")
 @click.option("-n", "--note", default="", help="记录遇到的语境，如“在读 xx 文档时”")
 @click.option("-s", "--source", default="", help="来源，如 URL 或书名")
-def lookup(term: Tuple[str, ...], refresh: bool, note: str, source: str) -> None:
+def lookup(term: tuple[str, ...], refresh: bool, note: str, source: str) -> None:
     """查询一个术语；本地没有就调用模型生成卡片并收录。"""
     _present(ingest.lookup_or_ingest(" ".join(term), note=note, source=source, refresh=refresh))
 
 
 @cli.command(hidden=True)
 @click.argument("text", nargs=-1)
-def pipe(text: Tuple[str, ...]) -> None:
+def pipe(text: tuple[str, ...]) -> None:
     content = " ".join(text) or _read_stdin()
     _present(ingest.ingest_piped(content))
 
@@ -149,7 +153,7 @@ def paste(notify: bool) -> None:
 @cli.command()
 @click.option("--port", type=int, default=None, help="默认取配置 serve.port（7789）")
 @click.option("--no-browser", is_flag=True, help="启动后不自动打开浏览器")
-def serve(port: Optional[int], no_browser: bool) -> None:
+def serve(port: int | None, no_browser: bool) -> None:
     """启动本地 Web 弹窗 + HTTP API（只监听 127.0.0.1）。"""
     import webbrowser
 
@@ -159,7 +163,9 @@ def serve(port: Optional[int], no_browser: bool) -> None:
     try:
         srv = start_server(port)
     except OSError as exc:
-        raise GlossError(f"端口 {port} 被占用（{exc}）。换个端口试试: gloss serve --port 7790")
+        raise GlossError(
+            f"端口 {port} 被占用（{exc}）。换个端口试试: gloss serve --port 7790"
+        ) from exc
     ui.console.print(f"[green]gloss 网页版已启动: http://127.0.0.1:{port}[/green]（Ctrl+C 退出）")
     ui.console.print("做成弹窗/快捷键的配方见 extras/README.md；常驻方案: gloss app")
     if not no_browser:
@@ -208,14 +214,14 @@ def app_cmd(no_hotkey: bool, hidden: bool, foreground: bool,
         if pid is None:
             ui.console.print("[dim]gloss app 没有在运行。[/dim]")
         else:
-            ui.console.print(f"[green]✓ 已停止 (pid {pid})[/green]")
+            ui.console.print(f"[green]{ui.glyph('✓', 'OK')} 已停止 (pid {pid})[/green]")
         return
     if startup_mode == "install":
         _require_darwin_app()
         path = appctl.install_startup(no_hotkey=no_hotkey)
         pid = appctl.ensure_startup_running()
         ui.console.print(
-            f"[green]✓ 登录自启已启用，应用已就绪 (pid {pid})[/green]"
+            f"[green]{ui.glyph('✓', 'OK')} 登录自启已启用，应用已就绪 (pid {pid})[/green]"
             f"（{path}，登录后隐藏启动）"
         )
         return
@@ -224,14 +230,18 @@ def app_cmd(no_hotkey: bool, hidden: bool, foreground: bool,
         pid_before = appctl.running_instance()
         if appctl.remove_startup():
             if pid_before is None:
-                ui.console.print("[green]✓ 已移除登录自启[/green]（当前无已就绪实例）")
+                ui.console.print(
+                    f"[green]{ui.glyph('✓', 'OK')} 已移除登录自启[/green]（当前无已就绪实例）"
+                )
             elif not appctl.pid_is_gloss(pid_before):
                 ui.console.print(
-                    "[yellow]✓ 已移除登录自启[/yellow]"
+                    f"[yellow]{ui.glyph('✓', 'OK')} 已移除登录自启[/yellow]"
                     "（当前实例已退出。重新启动: gloss app）"
                 )
             else:
-                ui.console.print("[green]✓ 已移除登录自启[/green]（当前实例仍在运行）")
+                ui.console.print(
+                    f"[green]{ui.glyph('✓', 'OK')} 已移除登录自启[/green]（当前实例仍在运行）"
+                )
         else:
             ui.console.print("[dim]本来就没有登录自启。[/dim]")
         return
@@ -263,8 +273,10 @@ def app_cmd(no_hotkey: bool, hidden: bool, foreground: bool,
             return
         raise
     ui.console.print(
-        f"[green]✓ gloss 已在后台驻留[/green]（pid {pid}，终端可以关了）\n"
-        "菜单栏 📖 可呼出弹窗；查看状态: gloss app --status · 停止: gloss app --stop"
+        f"[green]{ui.glyph('✓', 'OK')} gloss 已在后台驻留[/green]"
+        f"（pid {pid}，终端可以关了）\n"
+        f"菜单栏 {ui.glyph('📖', '')}可呼出弹窗；"
+        "查看状态: gloss app --status · 停止: gloss app --stop"
     )
 
 
@@ -326,24 +338,30 @@ def hotkey_cmd(startup_mode: str, detach_mode: bool) -> None:
 
     if startup_mode == "install":
         path = hotkey.install_startup()
-        ui.console.print(f"[green]✓ 已写入开机自启[/green]（{path}，登录后隐藏运行 gloss hotkey）")
+        ui.console.print(
+            f"[green]{ui.glyph('✓', 'OK')} 已写入开机自启[/green]"
+            f"（{path}，登录后隐藏运行 gloss hotkey）"
+        )
         return
     if startup_mode == "remove":
         if hotkey.remove_startup():
-            ui.console.print("[green]✓ 已移除开机自启[/green]")
+            ui.console.print(f"[green]{ui.glyph('✓', 'OK')} 已移除开机自启[/green]")
         else:
             ui.console.print("[dim]本来就没有开机自启。[/dim]")
         return
     if detach_mode:
         hotkey.detach()
-        ui.console.print("[green]✓ 已在后台驻留[/green]（托盘 📖 图标可见，右键可退出）")
+        ui.console.print(
+            f"[green]{ui.glyph('✓', 'OK')} 已在后台驻留[/green]"
+            f"（托盘 {ui.glyph('📖', '')}图标可见，右键可退出）"
+        )
         return
     hotkey.run_hotkey()
 
 
 @cli.command("tr")
 @click.argument("text", nargs=-1)
-def tr(text: Tuple[str, ...]) -> None:
+def tr(text: tuple[str, ...]) -> None:
     """翻译文本（缓存复用）：gloss tr <文本>；不带参数则读剪贴板。"""
     from .clipboard import read_clipboard
 
@@ -359,7 +377,7 @@ def tr(text: Tuple[str, ...]) -> None:
 @cli.command()
 @click.argument("name", nargs=-1, required=True)
 @click.option("-y", "--yes", is_flag=True, help="跳过确认")
-def rm(name: Tuple[str, ...], yes: bool) -> None:
+def rm(name: tuple[str, ...], yes: bool) -> None:
     """删除一张卡片及其所有关联。"""
     card = db.get_card(" ".join(name))
     if card is None:
@@ -368,8 +386,9 @@ def rm(name: Tuple[str, ...], yes: bool) -> None:
         )
     if not yes:
         click.confirm(f"确定删除 {card.term!r}？其别名与关联会一并移除。", abort=True)
+    assert card.id is not None  # 库里读出的卡片必有 id
     db.delete_card(card.id)
-    ui.console.print(f"[green]✓ 已删除 {card.term}[/green]")
+    ui.console.print(f"[green]{ui.glyph('✓', 'OK')} 已删除 {card.term}[/green]")
 
 
 _EDIT_HEADER = """<!--
@@ -453,7 +472,7 @@ def _parse_editable(text: str) -> dict:
 @click.option("--add-alias", multiple=True, help="追加别名（可多次）")
 @click.option("--add-tag", multiple=True, help="追加标签（可多次）")
 @click.option("--add-related", multiple=True, help="补充关联概念（可多次）")
-def edit(name: Tuple[str, ...], opt_term, opt_one_liner, opt_detail, opt_source,
+def edit(name: tuple[str, ...], opt_term, opt_one_liner, opt_detail, opt_source,
          opt_context, add_alias, add_tag, add_related) -> None:
     """编辑卡片：带字段参数直接修改；不带则用 $EDITOR 打开整卡编辑。"""
     card = db.get_card(" ".join(name))
@@ -523,14 +542,15 @@ def demo(clear: bool) -> None:
         )
         click.echo("不想要这些示例了: gloss demo --clear")
     else:
-        click.echo("示例卡片之前已经导入过" + (f"（跳过 {skipped} 张重名）" if skipped else "") + "，直接 gloss ls 看。")
+        skipped_note = f"（跳过 {skipped} 张重名）" if skipped else ""
+        click.echo("示例卡片之前已经导入过" + skipped_note + "，直接 gloss ls 看。")
 
 
 @cli.command()
 @click.option("-t", "--type", "card_type", type=click.Choice(["term", "snippet"]), default=None)
 @click.option("--tag", default=None, help="按标签过滤")
 @click.option("--limit", default=50, show_default=True)
-def ls(card_type: Optional[str], tag: Optional[str], limit: int) -> None:
+def ls(card_type: str | None, tag: str | None, limit: int) -> None:
     """浏览词库。"""
     ui.render_list(db.list_cards(card_type=card_type, tag=tag, limit=limit))
 
@@ -543,7 +563,7 @@ def _recent_terms(limit: int = 5) -> str:
 @cli.command()
 @click.argument("name", nargs=-1)
 @click.option("--json", "as_json", is_flag=True, help="输出原始 JSON（供脚本使用）")
-def show(name: Tuple[str, ...], as_json: bool) -> None:
+def show(name: tuple[str, ...], as_json: bool) -> None:
     """只看本地卡片，不触发模型。"""
     import json as jsonlib
 
@@ -556,6 +576,7 @@ def show(name: Tuple[str, ...], as_json: bool) -> None:
     card = db.get_card(" ".join(name))
     if card is None:
         raise GlossError("本地没有这张卡片。去掉 show 直接 gloss <词> 可以联网收录。")
+    assert card.id is not None  # 库里读出的卡片必有 id
     if as_json:
         data = card.to_row()
         data["links"] = [c.term for c in db.neighbors(card.id)]
@@ -568,19 +589,19 @@ def show(name: Tuple[str, ...], as_json: bool) -> None:
 @cli.command()
 @click.argument("query", nargs=-1)
 @click.option("--limit", default=20, show_default=True)
-def search(query: Tuple[str, ...], limit: int) -> None:
+def search(query: tuple[str, ...], limit: int) -> None:
     """全文搜索词库（FTS5，找不到时回退 LIKE）。"""
     if not query:
         raise GlossError(
-            f"用法: gloss search <关键词>，例如 gloss search 向量\n"
-            f"浏览全部: gloss ls"
+            "用法: gloss search <关键词>，例如 gloss search 向量\n"
+            "浏览全部: gloss ls"
         )
     ui.render_search(db.search(" ".join(query), limit=limit), " ".join(query))
 
 
 @cli.command()
 @click.argument("name", nargs=-1)
-def related(name: Tuple[str, ...]) -> None:
+def related(name: tuple[str, ...]) -> None:
     """查看一张卡片关联了哪些概念。"""
     if not name:
         raise GlossError(
@@ -590,6 +611,7 @@ def related(name: Tuple[str, ...]) -> None:
     card = db.get_card(" ".join(name))
     if card is None:
         raise GlossError("本地没有这张卡片。")
+    assert card.id is not None  # 库里读出的卡片必有 id
     ui.render_related(card, db.neighbors(card.id), db.pending_names(card))
 
 
@@ -609,7 +631,7 @@ def stats() -> None:
 @cli.command()
 @click.option("--format", "fmt", type=click.Choice(["md", "json"]), default="md", show_default=True)
 @click.option("--out", type=click.Path(), default=None, help="输出目录/文件，默认 ./gloss-export")
-def export(fmt: str, out: Optional[str]) -> None:
+def export(fmt: str, out: str | None) -> None:
     """导出词库（md = Obsidian 兼容，json = 完整备份）。"""
     if fmt == "json":
         path = export_json(Path(out or "gloss-export/gloss-backup.json"))
@@ -634,7 +656,7 @@ def _click_hidden_eof_safe() -> bool:
     — and its hidden prompt would read the real console under fake stdin.
     """
     try:
-        major, minor = (int(p) for p in click.__version__.split(".")[:2])
+        major, minor = (int(p) for p in str(click.__version__).split(".")[:2])
     except (AttributeError, ValueError):
         return True
     return (major, minor) >= (8, 2)
@@ -736,7 +758,7 @@ def main() -> None:
     try:
         cli()
     except GlossError as exc:
-        ui.console.print(f"[red]✗ {exc}[/red]")
+        ui.console.print(f"[red]{ui.glyph('✗', 'X')} {exc}[/red]")
         sys.exit(1)
     except KeyboardInterrupt:
         sys.exit(130)

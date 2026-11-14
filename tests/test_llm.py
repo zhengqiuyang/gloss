@@ -62,7 +62,11 @@ def test_term_prompt_contains_known_terms_and_language(monkeypatch):
 
     def fake_chat_json(self, system, user, image_path=None):
         captured["system"], captured["user"] = system, user
-        return {"term": "RAG", "aliases": [], "one_liner": "", "detail": "", "tags": [], "related": []}, 0
+        payload = {
+            "term": "RAG", "aliases": [], "one_liner": "", "detail": "",
+            "tags": [], "related": [],
+        }
+        return payload, 0
 
     monkeypatch.setattr(GlossLLM, "chat_json", fake_chat_json)
     data, _ = _llm().explain_term(

@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import pytest
+from conftest import TERM_PAYLOAD, make_card
 
 from gloss import db, ingest
 from gloss.models import GlossError
-
-from conftest import TERM_PAYLOAD, make_card
 
 
 def test_first_lookup_ingests_via_llm(home, fake_llm):
@@ -156,7 +155,10 @@ def test_piped_long_text_creates_snippet_with_key_terms(home, fake_llm):
 
 def test_snippet_title_collision_gets_suffix(home, fake_llm):
     ingest.ingest_piped("一段内容 " * 20)
-    fake_llm.snippet_queue.append((dict(title="关于 agent 记忆设计的笔记", one_liner="b", detail="c", tags=[], key_terms=[]), 10))
+    fake_llm.snippet_queue.append((
+        dict(title="关于 agent 记忆设计的笔记", one_liner="b", detail="c", tags=[], key_terms=[]),
+        10,
+    ))
     ingest.ingest_piped("另一段内容 " * 20)
     assert db.get_card("关于 agent 记忆设计的笔记 (2)") is not None
 
@@ -240,7 +242,8 @@ def test_adding_alias_backfills_pending(home, fake_llm):
     note = make_card("阅读笔记", related_names=["Vector DB"])
     db.resolve_related(note)
     rag = make_card("RAG", one_liner="x")
-    ingest.patch_card(rag, aliases=["vector db"], additive=True)  # 新增别名匹配 pending（大小写不敏感）
+    # 新增别名匹配 pending（大小写不敏感）
+    ingest.patch_card(rag, aliases=["vector db"], additive=True)
     assert db.has_link(note.id, rag.id)
     assert db.pending_names(db.get_card("阅读笔记")) == []
 

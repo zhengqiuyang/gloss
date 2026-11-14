@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import pytest
+from conftest import make_card
 
 from gloss import db
 from gloss.cli import cli
-
-from conftest import make_card
-
 
 # -- rm -----------------------------------------------------------------------
 

@@ -7,7 +7,7 @@ import json
 import mimetypes
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .config import load_config, resolve_api_key
 from .models import GlossError
@@ -63,7 +63,7 @@ Rules:
 """
 
 
-def extract_json(text: str) -> Dict[str, Any]:
+def extract_json(text: str) -> dict[str, Any]:
     """Pull the first balanced JSON object out of an LLM reply, tolerating fences/prose."""
     cleaned = re.sub(r"```(?:json)?", "", text).strip()
     start = cleaned.find("{")
@@ -99,7 +99,7 @@ def extract_json(text: str) -> Dict[str, Any]:
     raise GlossError(f"模型返回的 JSON 不完整:\n{text[:300]}")
 
 
-def _as_str_list(value: Any, max_items: int = 10) -> List[str]:
+def _as_str_list(value: Any, max_items: int = 10) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(v).strip() for v in value if str(v).strip()][:max_items]
@@ -108,7 +108,7 @@ def _as_str_list(value: Any, max_items: int = 10) -> List[str]:
 class GlossLLM:
     """Thin wrapper over an OpenAI-compatible chat completion endpoint."""
 
-    def __init__(self, cfg: Optional[Dict[str, Dict[str, Any]]] = None):
+    def __init__(self, cfg: dict[str, dict[str, Any]] | None = None):
         self.cfg = cfg or load_config()
 
     @property
@@ -143,12 +143,13 @@ class GlossLLM:
         self,
         system: str,
         user: str,
-        image_path: Optional[str] = None,
-    ) -> Tuple[str, int]:
+        image_path: str | None = None,
+    ) -> tuple[str, int]:
         llm = self.cfg["llm"]
+        content: str | list[dict[str, Any]]
         if image_path:
             model = llm.get("vision_model") or llm["model"]
-            content: List[Dict[str, Any]] = [
+            content = [
                 {"type": "text", "text": user},
                 {"type": "image_url", "image_url": {"url": _image_data_url(image_path)}},
             ]
@@ -186,8 +187,8 @@ class GlossLLM:
         return text, tokens
 
     def chat_json(
-        self, system: str, user: str, image_path: Optional[str] = None
-    ) -> Tuple[Dict[str, Any], int]:
+        self, system: str, user: str, image_path: str | None = None
+    ) -> tuple[dict[str, Any], int]:
         text, tokens = self._complete(system, user, image_path)
         return extract_json(text), tokens
 
@@ -196,10 +197,10 @@ class GlossLLM:
     def explain_term(
         self,
         term: str,
-        known_terms: List[str],
+        known_terms: list[str],
         context: str = "",
         source: str = "",
-    ) -> Tuple[Dict[str, Any], int]:
+    ) -> tuple[dict[str, Any], int]:
         g = self.cfg["glossary"]
         system = TERM_SYSTEM.format(
             schema=TERM_SCHEMA_HINT,
@@ -217,7 +218,7 @@ class GlossLLM:
             data["term"] = term
         return data, tokens
 
-    def digest_text(self, text: str, known_terms: List[str]) -> Tuple[Dict[str, Any], int]:
+    def digest_text(self, text: str, known_terms: list[str]) -> tuple[dict[str, Any], int]:
         g = self.cfg["glossary"]
         system = SNIPPET_SYSTEM.format(
             schema=SNIPPET_SCHEMA_HINT,
@@ -228,8 +229,8 @@ class GlossLLM:
         return self.chat_json(system, user)
 
     def analyze_image(
-        self, image_path: str, note: str, known_terms: List[str]
-    ) -> Tuple[Dict[str, Any], int]:
+        self, image_path: str, note: str, known_terms: list[str]
+    ) -> tuple[dict[str, Any], int]:
         g = self.cfg["glossary"]
         system = SNIPPET_SYSTEM.format(
             schema=SNIPPET_SCHEMA_HINT,
@@ -243,7 +244,7 @@ class GlossLLM:
         )
         return self.chat_json(system, user, image_path=image_path)
 
-    def translate(self, text: str, target: str) -> Tuple[str, int]:
+    def translate(self, text: str, target: str) -> tuple[str, int]:
         system = TRANSLATE_SYSTEM.format(target=target)
         data, tokens = self.chat_json(system, text[:8000])
         translation = str(data.get("translation") or "").strip()

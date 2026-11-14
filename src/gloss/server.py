@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from . import clipboard, ingest
 from .config import load_config, resolve_api_key
@@ -39,7 +39,7 @@ _SETTING_ROUTES = {
 }
 
 
-def settings_payload() -> Dict[str, Any]:
+def settings_payload() -> dict[str, Any]:
     """What the settings page is allowed to see; the key is always masked."""
     cfg = load_config()
     llm, app_, g = cfg["llm"], cfg["app"], cfg["glossary"]
@@ -71,8 +71,8 @@ def classify_llm_error(message: str) -> str:
     return "测试失败：" + message[:200]
 
 
-def card_to_dict(card: Card, linked: Optional[List[Card]] = None,
-                 pending: Optional[List[str]] = None) -> Dict[str, Any]:
+def card_to_dict(card: Card, linked: list[Card] | None = None,
+                 pending: list[str] | None = None) -> dict[str, Any]:
     linked = linked or []
     pending = pending or []
     return {
@@ -91,9 +91,9 @@ def card_to_dict(card: Card, linked: Optional[List[Card]] = None,
     }
 
 
-def result_to_dict(result: Dict[str, Any]) -> Dict[str, Any]:
+def result_to_dict(result: dict[str, Any]) -> dict[str, Any]:
     card = result["card"]
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "cache_hit": result.get("cache_hit", False),
         "card": card_to_dict(card, result.get("linked"), result.get("pending")),
     }
@@ -107,7 +107,7 @@ def make_handler():
         def log_message(self, *args):  # keep the popup quiet
             pass
 
-        def _json(self, code: int, payload: Dict[str, Any]) -> None:
+        def _json(self, code: int, payload: dict[str, Any]) -> None:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self.send_response(code)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -233,7 +233,7 @@ def make_handler():
             llm = cfg["llm"]
             return bool(llm.get("vision_model") or llm.get("model"))
 
-        def _read_body(self) -> Dict[str, Any]:
+        def _read_body(self) -> dict[str, Any]:
             length = min(int(self.headers.get("Content-Length", 0)), _MAX_BODY)
             return json.loads(self.rfile.read(length) or b"{}")
 

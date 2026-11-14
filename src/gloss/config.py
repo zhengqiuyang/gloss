@@ -7,7 +7,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -19,7 +19,7 @@ import tomli_w
 from .models import GlossError
 
 # Every user-settable key, with its default. Nested dict = config sections.
-DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
+DEFAULT_CONFIG: dict[str, dict[str, Any]] = {
     "llm": {
         "base_url": "https://api.openai.com/v1",
         "model": "gpt-4o-mini",
@@ -56,7 +56,7 @@ def _to_bool(raw: str) -> bool:
 
 
 # Flat dotted paths accepted by `gloss config set`, with value coercers.
-_CONFIG_SCHEMA = {
+_CONFIG_SCHEMA: dict[str, Callable[[str], Any]] = {
     "llm.base_url": str,
     "llm.model": str,
     "llm.vision_model": str,
@@ -85,7 +85,7 @@ def config_path() -> Path:
     return gloss_home() / "config.toml"
 
 
-def load_config() -> Dict[str, Dict[str, Any]]:
+def load_config() -> dict[str, dict[str, Any]]:
     cfg = copy.deepcopy(DEFAULT_CONFIG)
     path = config_path()
     if path.exists():
@@ -104,7 +104,7 @@ def load_config() -> Dict[str, Dict[str, Any]]:
     return cfg
 
 
-def save_config(cfg: Dict[str, Dict[str, Any]]) -> None:
+def save_config(cfg: dict[str, dict[str, Any]]) -> None:
     path = config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     # The file can contain credentials. Replace atomically with private mode.
@@ -119,7 +119,7 @@ def save_config(cfg: Dict[str, Dict[str, Any]]) -> None:
             temporary.unlink(missing_ok=True)
 
 
-def resolve_api_key(cfg: Dict[str, Dict[str, Any]]) -> Optional[str]:
+def resolve_api_key(cfg: dict[str, dict[str, Any]]) -> str | None:
     """Precedence: GLOSS_API_KEY env > OPENAI_API_KEY env > config file."""
     for env in ("GLOSS_API_KEY", "OPENAI_API_KEY"):
         value = os.environ.get(env)
@@ -137,14 +137,16 @@ def set_config_value(dotted_key: str, raw_value: str) -> None:
     try:
         value = coerce(raw_value)
     except ValueError as exc:
-        raise GlossError(f"{dotted_key} 需要一个 {coerce.__name__} 类型的值: {raw_value!r}") from exc
+        raise GlossError(
+            f"{dotted_key} 需要一个 {coerce.__name__} 类型的值: {raw_value!r}"
+        ) from exc
     cfg = load_config()
     section, key = dotted_key.split(".", 1)
     cfg[section][key] = value
     save_config(cfg)
 
 
-def mask_config(cfg: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def mask_config(cfg: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
     masked = copy.deepcopy(cfg)
     if masked["llm"].get("api_key"):
         key = masked["llm"]["api_key"]

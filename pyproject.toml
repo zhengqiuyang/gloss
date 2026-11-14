@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gloss-cli"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Learn a term once, own it forever — a local-first, AI-powered personal glossary."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -42,7 +42,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "coverage[toml]>=7.4",
+    "ruff>=0.6",
+    "mypy>=1.10",
+]
 # 平台专属 GUI：macOS 菜单栏应用用 pyobjc，Windows 原生无边框弹窗用 pywebview(WebView2) + 托盘图标(pystray)
 app = [
     "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",
@@ -59,9 +65,49 @@ gloss = "gloss.cli:main"
 Homepage = "https://github.com/zhengqiuyang/gloss"
 Issues = "https://github.com/zhengqiuyang/gloss/issues"
 
+[tool.hatch.version]
+path = "src/gloss/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/gloss"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+extend-exclude = [".venv", ".venv39"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# demo.py 是示例卡片数据（中文长句）；server.py 内嵌 HTML/JS 模板字符串，硬换行更难读
+"src/gloss/demo.py" = ["E501"]
+"src/gloss/server.py" = ["E501"]
+
+[tool.mypy]
+# mypy 目标只是选 stdlib stubs 版本；≥1.20 不再支持 3.9 目标，且第三方库源码
+# （click/pydantic 的 match 语句）在 3.9 目标下解析不了。真正的 3.9 兼容由
+# ruff target-version="py39"（语法层）+ CI 的 3.9 测试 leg（运行层）把关。
+python_version = "3.10"
+# 显式按 win32 分析：ctypes.windll（clipboard/hotkey）只在 win32 stubs 里存在，
+# 不指定时 Linux CI 按 posix 分析会误报；darwin 分支会被窄化跳过（Carbon 路径
+# 的检查靠运行层测试兜底）。
+platform = "win32"
+ignore_missing_imports = true
+warn_unused_ignores = true
+files = ["src/gloss"]
+
+[tool.coverage.run]
+source = ["src/gloss"]
+
+[tool.coverage.report]
+fail_under = 72  # 基线 74% - 2，向上棘轮，目标 80
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]

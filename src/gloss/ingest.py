@@ -14,19 +14,19 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from . import db
 from . import llm as llm_mod
 from .config import load_config
 from .llm import TEXT_MAX_CHARS
-from .models import Card, GlossError, TYPE_SNIPPET, TYPE_TERM, norm_term, now_iso
+from .models import TYPE_SNIPPET, TYPE_TERM, Card, GlossError, norm_term, now_iso
 
 # A "term" is short, single-line input; anything longer is a snippet to digest.
 TERM_MAX_CHARS = 80
 
 
-def _known_terms() -> List[str]:
+def _known_terms() -> list[str]:
     cfg = load_config()
     return db.all_terms(limit=cfg["glossary"]["max_known_terms"])
 
@@ -36,12 +36,13 @@ def lookup_or_ingest(
     note: str = "",
     source: str = "",
     refresh: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     term = " ".join(term.split())
     if not term:
         raise GlossError("请提供一个术语")
     existing = db.get_card(term)
     if existing and not refresh:
+        assert existing.id is not None  # 库里读出的卡片必有 id
         db.increment_hit(existing.id)
         existing.hit_count += 1  # keep the in-memory card in sync for display
         return {"card": existing, "cache_hit": True, "linked": [], "pending": [], "backfilled": []}
@@ -59,9 +60,11 @@ def lookup_or_ingest(
         if norm_term(payload_name) not in map(norm_term, card.aliases):
             card.aliases.insert(0, payload_name)
 
-    linked, pending = [], []
+    linked: list[Card] = []
+    pending: list[str] = []
     old_neighbors: set = set()
     if existing:  # --refresh keeps identity and history, replaces content
+        assert existing.id is not None  # 库里读出的卡片必有 id
         old_neighbors = {c.id for c in db.neighbors(existing.id)}
         existing.aliases = card.aliases
         existing.one_liner = card.one_liner
@@ -81,7 +84,13 @@ def lookup_or_ingest(
     backfilled = db.backfill_links(card) if card.id else []
     if old_neighbors:
         db.prune_stale_links(card, old_neighbors)
-    return {"card": card, "cache_hit": False, "linked": linked, "pending": pending, "backfilled": backfilled}
+    return {
+        "card": card,
+        "cache_hit": False,
+        "linked": linked,
+        "pending": pending,
+        "backfilled": backfilled,
+    }
 
 
 def _validate_payload(data: Any, kind: str) -> None:
@@ -114,7 +123,7 @@ def _validate_payload(data: Any, kind: str) -> None:
 
 
 def _card_from_llm(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     term: str,
     note: str,
     source: str,
@@ -139,13 +148,13 @@ def _card_from_llm(
     )
 
 
-def _as_list(value: Any) -> List[str]:
+def _as_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(v).strip() for v in value if str(v).strip()]
 
 
-def ingest_piped(text: str) -> Dict[str, Any]:
+def ingest_piped(text: str) -> dict[str, Any]:
     """Route pasted text: short single line → term lookup, longer → snippet digest."""
     text = text.strip()
     if not text:
@@ -171,7 +180,7 @@ def ingest_piped(text: str) -> Dict[str, Any]:
     return {"card": card, "key_terms": _as_list(data.get("key_terms")), "cache_hit": False}
 
 
-def ingest_image(image_path: str, note: str = "") -> Dict[str, Any]:
+def ingest_image(image_path: str, note: str = "") -> dict[str, Any]:
     known = _known_terms()
     data, tokens = llm_mod.get_client().analyze_image(image_path, note, known)
     _validate_payload(data, kind="snippet")
@@ -209,7 +218,7 @@ def _unique_title(title: str) -> str:
     return candidate
 
 
-def translate_text(text: str) -> Dict[str, Any]:
+def translate_text(text: str) -> dict[str, Any]:
     """Translate text into the configured target language, cached forever."""
     from .config import load_config
 
@@ -247,16 +256,16 @@ def translate_text(text: str) -> Dict[str, Any]:
 def patch_card(
     card: Card,
     *,
-    term: Optional[str] = None,
-    one_liner: Optional[str] = None,
-    detail: Optional[str] = None,
-    source: Optional[str] = None,
-    context: Optional[str] = None,
-    aliases: Optional[List[str]] = None,
-    tags: Optional[List[str]] = None,
-    related: Optional[List[str]] = None,
+    term: str | None = None,
+    one_liner: str | None = None,
+    detail: str | None = None,
+    source: str | None = None,
+    context: str | None = None,
+    aliases: list[str] | None = None,
+    tags: list[str] | None = None,
+    related: list[str] | None = None,
     additive: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Patch card fields (UI-free). None leaves a field untouched.
 
     additive=True extends alias/tag/related lists instead of replacing them.
@@ -264,7 +273,7 @@ def patch_card(
     is rejected. After saving, related names re-resolve (new links, pending
     backfill) exactly like a fresh ingest.
     """
-    old_term: Optional[str] = None
+    old_term: str | None = None
     if term is not None:
         new = term.strip()
         if not new:
@@ -276,7 +285,7 @@ def patch_card(
             old_term = card.term
             card.term = new
 
-    def merge(current: List[str], items: List[str], mode: str) -> List[str]:
+    def merge(current: list[str], items: list[str], mode: str) -> list[str]:
         items = [i.strip() for i in items if i and i.strip()]
         if mode == "replace":
             return items
@@ -290,6 +299,7 @@ def patch_card(
     # 替换关联时先记下旧邻居，保存后把"我不提、对方也不提"的旧链接剪掉
     old_neighbors: set = set()
     if related is not None and mode == "replace":
+        assert card.id is not None  # 库里读出的卡片必有 id
         old_neighbors = {c.id for c in db.neighbors(card.id)}
     if one_liner is not None:
         card.one_liner = one_liner.strip()

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Dict, List
 
 from . import db
 from .models import Card
@@ -14,13 +13,14 @@ from .models import Card
 INDEX_NAME = "index"
 
 
-def export_markdown(out_dir: Path) -> List[Path]:
+def export_markdown(out_dir: Path) -> list[Path]:
     out_dir = out_dir.expanduser()
     out_dir.mkdir(parents=True, exist_ok=True)
     cards = list(db.iter_all())
     names = _all_filenames(cards)  # card id → file base name, wiki links use this
-    written: List[Path] = []
+    written: list[Path] = []
     for card in cards:
+        assert card.id is not None  # 库里读出的卡片必有 id
         path = out_dir / (names[card.id] + ".md")
         path.write_text(_card_markdown(card, names), encoding="utf-8")
         written.append(path)
@@ -37,6 +37,7 @@ def export_json(out_path: Path) -> Path:
     for card in db.iter_all():
         data = card.to_row()
         data["term_norm"] = card.norm
+        assert card.id is not None  # 库里读出的卡片必有 id
         data["links"] = [c.term for c in db.neighbors(card.id)]
         cards.append(data)
     payload = {"format": "gloss-backup", "version": 1, "cards": cards}
@@ -50,7 +51,7 @@ def _sanitize_filename(term: str) -> str:
     return cleaned.rstrip(". ") or "untitled"
 
 
-def _all_filenames(cards: List[Card]) -> Dict[int, str]:
+def _all_filenames(cards: list[Card]) -> dict[int, str]:
     """One filename per card, unique on case-insensitive filesystems.
 
     macOS/Windows FS treat `Index.md` and `index.md` as the same file, so
@@ -59,8 +60,9 @@ def _all_filenames(cards: List[Card]) -> Dict[int, str]:
     reserved index name) get a numeric suffix.
     """
     used_cf = {INDEX_NAME}
-    names: Dict[int, str] = {}
+    names: dict[int, str] = {}
     for card in cards:
+        assert card.id is not None  # 库里读出的卡片必有 id
         base = _sanitize_filename(card.term)
         candidate, n = base, 2
         while candidate.casefold() in used_cf:
@@ -76,14 +78,15 @@ def _yaml_str(value: str) -> str:
     return json.dumps(str(value), ensure_ascii=False)
 
 
-def _yaml_list(name: str, items: List[str]) -> str:
+def _yaml_list(name: str, items: list[str]) -> str:
     if not items:
         return ""
     lines = "\n".join(f"  - {_yaml_str(i)}" for i in items)
     return f"{name}:\n{lines}\n"
 
 
-def _card_markdown(card: Card, names: Dict[int, str]) -> str:
+def _card_markdown(card: Card, names: dict[int, str]) -> str:
+    assert card.id is not None  # 库里读出的卡片必有 id
     linked = db.neighbors(card.id)
     front = [
         "---",
@@ -109,11 +112,11 @@ def _card_markdown(card: Card, names: Dict[int, str]) -> str:
     if linked:
         # [[filename|term]]: the link target is the real file, the display
         # text keeps the user's original spelling.
-        body += (
-            "**相关概念**: "
-            + ", ".join(f"[[{names[c.id]}|{c.term}]]" for c in linked)
-            + "\n\n"
-        )
+        parts = []
+        for c in linked:
+            assert c.id is not None  # 库里读出的卡片必有 id
+            parts.append(f"[[{names[c.id]}|{c.term}]]")
+        body += "**相关概念**: " + ", ".join(parts) + "\n\n"
     if card.related_names:
         pending = db.pending_names(card)
         if pending:
@@ -127,7 +130,7 @@ def _card_markdown(card: Card, names: Dict[int, str]) -> str:
     return "\n".join(front) + "\n" + body
 
 
-def _index_markdown(names: Dict[int, str]) -> str:
+def _index_markdown(names: dict[int, str]) -> str:
     by_tag: dict = {}
     for card in db.iter_all():
         for tag in card.tags or ["未分类"]:
