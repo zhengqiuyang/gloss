@@ -93,6 +93,10 @@ select = ["E", "F", "I", "UP", "B"]
 # （click/pydantic 的 match 语句）在 3.9 目标下解析不了。真正的 3.9 兼容由
 # ruff target-version="py39"（语法层）+ CI 的 3.9 测试 leg（运行层）把关。
 python_version = "3.10"
+# 显式按 win32 分析：ctypes.windll（clipboard/hotkey）只在 win32 stubs 里存在，
+# 不指定时 Linux CI 按 posix 分析会误报；darwin 分支会被窄化跳过（Carbon 路径
+# 的检查靠运行层测试兜底）。
+platform = "win32"
 ignore_missing_imports = true
 warn_unused_ignores = true
 files = ["src/gloss"]
