@@ -113,20 +113,35 @@ def classify_llm_error(message: str) -> str:
     """
     m = message.lower()
     if "401" in m or "unauthorized" in m or "invalid api key" in m or "authentication" in m:
-        return "认证失败：API key 不对或已过期。"
+        return (
+            "认证失败：API key 不对或已过期。"
+            "运行 gloss setup 重新配置，或检查 GLOSS_API_KEY 环境变量。"
+        )
     if "404" in m or "model_not_found" in m or "does not exist" in m or "no such model" in m:
-        return "模型不存在：检查「文字模型」的拼写，或该服务是否提供这个模型。"
+        return (
+            "模型不存在：检查「文字模型」的拼写，"
+            "或该服务是否提供这个模型（可用 gloss config show 查看当前配置）。"
+        )
     if "timed out" in m or "timeout" in m or "超时" in m:
-        return "连接超时：服务地址可达但响应太慢，或网络受限。"
+        return (
+            "连接超时：服务地址可达但响应太慢，"
+            "或网络受限（可调大超时：gloss config set llm.timeout 60）。"
+        )
     if ("connection" in m or "resolve" in m or "getaddrinfo" in m
             or "refused" in m or "unreachable" in m):
-        return "连不上服务地址：检查「服务地址」拼写（OpenAI 兼容服务通常以 /v1 结尾）。"
+        return (
+            "连不上服务地址：检查「服务地址」拼写"
+            "（OpenAI 兼容服务通常以 /v1 结尾；可用 gloss setup 修改）。"
+        )
     # 429 / 5xx 用词边界匹配，避免把 "tokens: 15000" 之类的数字误判成状态码
     if re.search(r"\b429\b", m) or "rate limit" in m or "too many requests" in m or "配额" in m:
-        return "请求太频繁：触发服务商限流或配额用尽，稍等几秒再试。"
+        return "请求太频繁：触发服务商限流或配额用尽，稍等几秒再试，或检查服务商余额。"
     if (re.search(r"\b5\d{2}\b", m) or "bad gateway" in m
             or "internal server error" in m or "server error" in m):
-        return "服务端故障：服务商暂时不可用，稍后再试。"
+        return (
+            "服务端故障：服务商暂时不可用，稍后再试；"
+            "已收录的本地卡片不受影响（可用 gloss ls / gloss search 离线查看）。"
+        )
     return "测试失败：" + message[:200]
 
 
@@ -142,7 +157,10 @@ class GlossLLM:
             api_key = resolve_api_key(self.cfg)
             if not api_key:
                 raise GlossError(
-                    "还没有配置 API key。两种方式任选：\n"
+                    "还没有配置 API key。\n"
+                    "先离线体验：gloss demo（导入 9 张示例卡片，无需 key）\n"
+                    "交互配置：gloss setup（隐藏输入，30 秒配好）\n"
+                    "或手动配置（两种方式任选）：\n"
                     "  1. export GLOSS_API_KEY=sk-...\n"
                     "  2. gloss config set llm.api_key sk-...  （注意 config 文件是明文）\n"
                     "任意 OpenAI 兼容服务都能用（DeepSeek / GLM / Ollama…）。"

@@ -143,7 +143,7 @@ def render_translation(result: dict) -> None:
 
 def render_list(cards: list[Card]) -> None:
     if not cards:
-        console.print("[dim]词库还是空的。试试: gloss RAG[/dim]")
+        console.print("[dim]词库还是空的。离线体验: gloss demo · 配置模型后查词: gloss setup[/dim]")
         return
     table = Table(title=f"词库 · {len(cards)} 条")
     table.add_column("词条", style="cyan", no_wrap=True)
