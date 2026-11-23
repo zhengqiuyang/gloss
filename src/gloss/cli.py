@@ -649,6 +649,14 @@ def export(fmt: str, out: str | None) -> None:
         click.echo(f"已导出 {len(files)} 个 markdown 文件到 {files[0].parent}/")
 
 
+@cli.command("mcp")
+def mcp_cmd() -> None:
+    """启动只读 MCP server（stdio JSON-RPC 2.0），供编辑器 / Agent 查词库。"""
+    from .mcp import serve_stdio
+
+    serve_stdio()
+
+
 @cli.group()
 def config() -> None:
     """查看或修改配置。"""

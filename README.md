@@ -227,6 +227,21 @@ model changes need an app restart to take effect.
 | `gloss hotkey` (global-hotkey popup + tray) | **Windows only** — frameless WebView2 card; the macOS counterpart is `gloss app` |
 | `gloss app` (menu bar + ⌘G popup, background/autostart) | **macOS only** — pyobjc, Carbon hotkey |
 
+## MCP server (query your glossary from editors & agents)
+
+`gloss mcp` runs a zero-extra-dependency, read-only stdio JSON-RPC 2.0 MCP server exposing `gloss_search`, `gloss_get`, `gloss_related`, and `gloss_recent`. Add it to Claude Desktop, Cursor, or any MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "gloss": {
+      "command": "gloss",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
 <a id="roadmap"></a>
 ## Roadmap
 
@@ -235,7 +250,7 @@ model changes need an app restart to take effect.
 - [x] Menu-bar app (macOS) / tray frameless card (Windows)
 - [ ] Semantic search with local embeddings
 - [ ] Spaced-repetition review (`gloss quiz`)
-- [ ] MCP server so editors/agents can query your glossary
+- [x] MCP server so editors/agents can query your glossary
 - [ ] WeChat/Telegram bot (built on `gloss serve`'s API)
 - [ ] Multi-machine sync
 

@@ -198,6 +198,21 @@ Windows 直接注册 Ctrl+G，不先尝试 Win+G。自定义组合可用 `gloss 
 | `gloss hotkey`（全局热键弹窗 + 托盘） | **仅 Windows**——WebView2 无边框卡片；macOS 对应能力是 `gloss app` |
 | `gloss app`（菜单栏 + ⌘G 浮窗，后台/自启） | **仅 macOS**——依赖 pyobjc、Carbon 热键 |
 
+## MCP server（让编辑器 / Agent 查你的词库）
+
+`gloss mcp` 提供零新增依赖的只读 stdio JSON-RPC 2.0 MCP server，暴露 4 个只读工具：`gloss_search`、`gloss_get`、`gloss_related`、`gloss_recent`。在 Claude Desktop、Cursor 等客户端的 MCP 配置中加入：
+
+```json
+{
+  "mcpServers": {
+    "gloss": {
+      "command": "gloss",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
 <a id="roadmap"></a>
 ## Roadmap
 
@@ -206,7 +221,7 @@ Windows 直接注册 Ctrl+G，不先尝试 Win+G。自定义组合可用 `gloss 
 - [x] 菜单栏应用（macOS）/ 托盘无边框卡片（Windows）
 - [ ] 本地 embedding 语义搜索（按意思找卡片）
 - [ ] 间隔复习（`gloss quiz`）
-- [ ] MCP server，让编辑器/agent 查你的词库
+- [x] MCP server，让编辑器/agent 查你的词库
 - [ ] 微信/Telegram bot（基于 `gloss serve` 的 API）
 - [ ] 多机词库同步
 
